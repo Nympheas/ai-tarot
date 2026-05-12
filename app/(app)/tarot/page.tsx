@@ -6,6 +6,7 @@ import { CardDraw } from "@/components/tarot/CardDraw";
 import { ReadingOutput } from "@/components/tarot/ReadingOutput";
 import { TarotCard } from "@/lib/divination/tarot-cards";
 import { saveReading } from "@/lib/storage";
+import { ReadingLoader } from "@/components/ReadingLoader";
 
 type DrawnCard = TarotCard & { isReversed: boolean; position: string };
 type Message = { role: "user" | "assistant"; content: string };
@@ -152,6 +153,7 @@ export default function TarotPage() {
         {/* Step 3: Reading */}
         {step === "reading" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col items-center gap-6">
+            {!output && isStreaming && <ReadingLoader />}
             {output && (
               <ReadingOutput
                 content={output}
@@ -159,10 +161,10 @@ export default function TarotPage() {
                 onFollowUp={handleFollowUp}
               />
             )}
-            {!isStreaming && (
+            {!isStreaming && output && (
               <button
                 onClick={reset}
-                className="text-slate-500 text-sm hover:text-slate-300 transition-colors cursor-pointer"
+                className="text-slate-600 text-xs hover:text-slate-400 transition-colors cursor-pointer pb-20"
               >
                 开始新的占卜
               </button>

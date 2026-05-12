@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { CoinThrow } from "@/components/iching/CoinThrow";
 import { ReadingOutput } from "@/components/tarot/ReadingOutput";
 import { saveReading } from "@/lib/storage";
+import { ReadingLoader } from "@/components/ReadingLoader";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Step = "question" | "throw" | "reading";
@@ -137,6 +138,7 @@ export default function IChingPage() {
         {/* Step 3: Reading */}
         {step === "reading" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col items-center gap-6">
+            {!output && isStreaming && <ReadingLoader />}
             {output && (
               <ReadingOutput
                 content={output}
@@ -144,10 +146,10 @@ export default function IChingPage() {
                 onFollowUp={handleFollowUp}
               />
             )}
-            {!isStreaming && (
+            {!isStreaming && output && (
               <button
                 onClick={reset}
-                className="text-stone-500 text-sm hover:text-stone-300 transition-colors cursor-pointer"
+                className="text-stone-600 text-xs hover:text-stone-400 transition-colors cursor-pointer pb-20"
               >
                 重新起卦
               </button>
