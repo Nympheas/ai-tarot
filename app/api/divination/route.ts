@@ -1,9 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI, Content } from "@google/generative-ai";
 import { getTarotSystemPrompt, buildTarotUserPrompt } from "@/lib/prompts/tarot";
 import { getIChingSystemPrompt, buildIChingUserPrompt } from "@/lib/prompts/iching";
 
 type DivinationType = "tarot" | "iching";
-
 type Message = { role: "user" | "assistant"; content: string };
 
 function getSystemPrompt(type: DivinationType): string {
@@ -28,12 +27,24 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
   return body.question as string;
 }
 
+// Convert our message format to Gemini's format
+function toGeminiHistory(messages: Message[]): Content[] {
+  return messages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   const { type, messages = [] }: { type: DivinationType; messages: Message[] } = body;
 
   // Mock mode: no API key configured
-  if (process.env.NEXT_PUBLIC_USE_MOCK === "true" || !process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === "your_api_key_here") {
+  if (
+    process.env.NEXT_PUBLIC_USE_MOCK === "true" ||
+    !process.env.GEMINI_API_KEY ||
+    process.env.GEMINI_API_KEY === "your_gemini_api_key_here"
+  ) {
     const mockText = getMockResponse(type);
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
@@ -49,24 +60,32 @@ export async function POST(req: Request) {
     return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 
-  const client = new Anthropic();
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    systemInstruction: getSystemPrompt(type),
+  });
+
   const userPrompt = buildUserPrompt(type, body);
 
-  const allMessages: Message[] = [
-    ...messages,
-    { role: "user", content: userPrompt },
-  ];
+  // Split history (all but current turn) for chat context
+  const history = toGeminiHistory(messages);
 
-  const stream = await client.messages.stream({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1500,
-    system: getSystemPrompt(type),
-    messages: allMessages,
+  const chat = model.startChat({ history });
+  const result = await chat.sendMessageStream(userPrompt);
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      for await (const chunk of result.stream) {
+        const text = chunk.text();
+        if (text) controller.enqueue(encoder.encode(text));
+      }
+      controller.close();
+    },
   });
 
-  return new Response(stream.toReadableStream(), {
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
-  });
+  return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
 
 function getMockResponse(type: DivinationType): string {
