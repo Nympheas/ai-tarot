@@ -60,36 +60,42 @@ export async function POST(req: Request) {
     return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    systemInstruction: getSystemPrompt(type),
-    generationConfig: {
-      maxOutputTokens: 4096,
-      temperature: 0.95,
-    },
-  });
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      systemInstruction: getSystemPrompt(type),
+      generationConfig: {
+        maxOutputTokens: 4096,
+        temperature: 0.95,
+      },
+    });
 
-  const userPrompt = buildUserPrompt(type, body);
+    const userPrompt = buildUserPrompt(type, body);
+    const history = toGeminiHistory(messages);
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessageStream(userPrompt);
 
-  // Split history (all but current turn) for chat context
-  const history = toGeminiHistory(messages);
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          if (text) controller.enqueue(encoder.encode(text));
+        }
+        controller.close();
+      },
+    });
 
-  const chat = model.startChat({ history });
-  const result = await chat.sendMessageStream(userPrompt);
-
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      for await (const chunk of result.stream) {
-        const text = chunk.text();
-        if (text) controller.enqueue(encoder.encode(text));
-      }
-      controller.close();
-    },
-  });
-
-  return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[divination] Gemini error:", message);
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 }
 
 function getMockResponse(type: DivinationType): string {
