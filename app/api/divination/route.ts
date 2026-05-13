@@ -2,13 +2,15 @@ import { GoogleGenerativeAI, Content } from "@google/generative-ai";
 import { getTarotSystemPrompt, buildTarotUserPrompt } from "@/lib/prompts/tarot";
 import { getIChingSystemPrompt, buildIChingUserPrompt } from "@/lib/prompts/iching";
 import { getMassSystemPrompt, buildMassUserPrompt, MassTheme } from "@/lib/prompts/mass";
+import { getZiweiSystemPrompt, buildZiweiUserPrompt, ZiweiFocusArea } from "@/lib/prompts/ziwei";
 
-type DivinationType = "tarot" | "iching" | "mass";
+type DivinationType = "tarot" | "iching" | "mass" | "ziwei";
 type Message = { role: "user" | "assistant"; content: string };
 
 function getSystemPrompt(type: DivinationType): string {
   if (type === "iching") return getIChingSystemPrompt();
-  if (type === "mass") return getMassSystemPrompt();
+  if (type === "mass")   return getMassSystemPrompt();
+  if (type === "ziwei")  return getZiweiSystemPrompt();
   return getTarotSystemPrompt();
 }
 
@@ -34,6 +36,17 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
       (body.question as string) ?? "",
       body.verificationCards as Array<{ nameZh: string; name: string; isReversed: boolean }>,
       body.readingCards as Array<{ nameZh: string; name: string; isReversed: boolean }>
+    );
+  }
+  if (type === "ziwei") {
+    return buildZiweiUserPrompt(
+      body.birthYear as number,
+      body.birthMonth as number,
+      body.birthDay as number,
+      body.shichen as string,
+      body.shichenRange as string,
+      body.gender as "male" | "female",
+      body.focusArea as ZiweiFocusArea
     );
   }
   return body.question as string;

@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/tarot", label: "塔罗", icon: "🔮" },
-  { href: "/iching", label: "易经", icon: "☯" },
-  { href: "/mass", label: "大众", icon: "💕" },
+  { href: "/tarot",   label: "塔罗", icon: "🔮" },
+  { href: "/iching",  label: "易经", icon: "☯"  },
+  { href: "/ziwei",   label: "紫微", icon: "⭐" },
+  { href: "/mass",    label: "大众", icon: "💕" },
   { href: "/history", label: "历史", icon: "📜" },
 ];
 
@@ -22,7 +23,7 @@ export function Nav() {
             <Link
               key={link.href}
               href={link.href}
-              className={`flex flex-col items-center gap-0.5 px-5 py-2 rounded-xl text-xs transition-all ${
+              className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-xs transition-all ${
                 active
                   ? "bg-white/10 text-white"
                   : "text-slate-500 hover:text-slate-300"
