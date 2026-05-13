@@ -56,6 +56,7 @@ export function buildMassUserPrompt(
   theme: MassTheme,
   groupNumber: number,
   groupSymbol: string,
+  question: string,
   cards: Array<{ nameZh: string; name: string; isReversed: boolean }>
 ): string {
   const themeLabel = THEME_LABELS[theme];
@@ -63,10 +64,10 @@ export function buildMassUserPrompt(
     .map((c, i) => `第${i + 1}张：${c.nameZh}（${c.name}）— ${c.isReversed ? "逆位" : "正位"}`)
     .join("\n");
 
-  return `今天的主题是「${themeLabel}」。
+  return `今天的主题是「${themeLabel}」，这组宝宝的问题是：「${question}」
 
 选了第${groupNumber}组（${groupSymbol}）的宝宝们，抽到的牌是：
 ${cardList}
 
-用爱丽丝聊灵塔罗的风格，帮这组宝宝解读他们在「${themeLabel}」方面的能量。记得叫他们"第${groupNumber}组的宝宝"，口语化有温度，让每个选了这组的人都感觉说的就是自己。`;
+用爱丽丝聊灵塔罗的风格，围绕宝宝的问题「${question}」来解读这组牌。记得叫他们"第${groupNumber}组的宝宝"，口语化有温度，让每个选了这组的人都感觉说的就是自己。`;
 }

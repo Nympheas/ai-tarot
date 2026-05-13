@@ -31,6 +31,7 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
       body.theme as MassTheme,
       body.groupNumber as number,
       body.groupSymbol as string,
+      (body.question as string) ?? "",
       body.cards as Array<{ nameZh: string; name: string; isReversed: boolean }>
     );
   }
