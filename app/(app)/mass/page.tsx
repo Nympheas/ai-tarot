@@ -26,7 +26,7 @@ const GROUPS = [
   { number: 3, symbol: "✨", name: "黄水晶", accent: "amber" },
 ] as const;
 
-type GroupState = { status: "idle" | "loading" | "done"; content: string };
+type GroupState = { status: "idle" | "loading" | "done" | "error"; content: string; retryAfter?: number };
 
 const ACCENT = {
   purple: { border: "border-purple-500/30", bg: "bg-purple-900/10", btn: "from-purple-600 to-indigo-600", badge: "bg-purple-500/10 text-purple-300 border-purple-500/20", sub: "text-purple-400/70" },
@@ -102,6 +102,15 @@ export default function MassPage() {
         messages: [],
       }),
     });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      updateGroup(index, {
+        status: "error",
+        retryAfter: res.status === 429 ? (data.retryAfter ?? 60) : undefined,
+      });
+      return;
+    }
 
     if (!res.body) { updateGroup(index, { status: "idle" }); return; }
 
@@ -311,6 +320,9 @@ export default function MassPage() {
                         {inputMode === "manual" ? "重新生成" : "重抽"}
                       </button>
                     )}
+                    {g.status === "error" && (
+                      <span className="text-amber-500/70 text-xs">额度不足</span>
+                    )}
                   </div>
 
                   {/* Manual card inputs */}
@@ -382,6 +394,30 @@ export default function MassPage() {
                           {!verifyDone ? "请填写验证牌" : "请填写解读牌"}（共 8 张后可生成）
                         </p>
                       )}
+                    </div>
+                  )}
+
+                  {/* Error state */}
+                  {g.status === "error" && (
+                    <div className="px-5 pb-5 border-t border-white/5 pt-4 flex flex-col gap-2">
+                      {g.retryAfter ? (
+                        <>
+                          <p className="text-amber-400/90 text-sm font-medium">今日免费额度已用完</p>
+                          <p className="text-slate-500 text-xs leading-relaxed">
+                            Gemini 免费版每天限 20 次请求。请等约 {g.retryAfter} 秒后重试，或前往
+                            <span className="text-slate-400"> Google AI Studio → 开启计费</span>，
+                            配额会提升到每天 1500 次。
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-red-400/80 text-sm">生成失败，请稍后重试</p>
+                      )}
+                      <button
+                        onClick={() => updateGroup(i, { status: "idle", retryAfter: undefined })}
+                        className="text-slate-500 text-xs hover:text-slate-300 cursor-pointer mt-1 text-left"
+                      >
+                        返回重试 →
+                      </button>
                     </div>
                   )}
 

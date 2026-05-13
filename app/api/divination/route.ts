@@ -103,6 +103,16 @@ export async function POST(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[divination] Gemini error:", message);
+
+    if (message.includes("429") || message.includes("quota")) {
+      const retryMatch = message.match(/retry in (\d+(?:\.\d+)?)s/i);
+      const retryAfter = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 60;
+      return new Response(JSON.stringify({ error: "quota_exceeded", retryAfter }), {
+        status: 429,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
