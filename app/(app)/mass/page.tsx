@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import { ReadingLoader } from "@/components/ReadingLoader";
-import { drawCards, MAJOR_ARCANA } from "@/lib/divination/tarot-cards";
+import { drawCards, ALL_CARDS } from "@/lib/divination/tarot-cards";
 import { saveReading } from "@/lib/storage";
 import { MassTheme, THEME_LABELS, POPULAR_QUESTIONS } from "@/lib/prompts/mass";
 
@@ -329,7 +329,7 @@ export default function MassPage() {
                         </div>
                       ))}
                       <datalist id={`datalist-${i}`}>
-                        {MAJOR_ARCANA.map((c) => (
+                        {ALL_CARDS.map((c) => (
                           <option key={c.id} value={c.nameZh} />
                         ))}
                       </datalist>
