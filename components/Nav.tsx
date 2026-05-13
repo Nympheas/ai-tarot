@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const links = [
   { href: "/tarot", label: "塔罗", icon: "🔮" },
   { href: "/iching", label: "易经", icon: "☯" },
+  { href: "/mass", label: "大众", icon: "💕" },
   { href: "/history", label: "历史", icon: "📜" },
 ];
 

@@ -1,12 +1,14 @@
 import { GoogleGenerativeAI, Content } from "@google/generative-ai";
 import { getTarotSystemPrompt, buildTarotUserPrompt } from "@/lib/prompts/tarot";
 import { getIChingSystemPrompt, buildIChingUserPrompt } from "@/lib/prompts/iching";
+import { getMassSystemPrompt, buildMassUserPrompt, MassTheme } from "@/lib/prompts/mass";
 
-type DivinationType = "tarot" | "iching";
+type DivinationType = "tarot" | "iching" | "mass";
 type Message = { role: "user" | "assistant"; content: string };
 
 function getSystemPrompt(type: DivinationType): string {
   if (type === "iching") return getIChingSystemPrompt();
+  if (type === "mass") return getMassSystemPrompt();
   return getTarotSystemPrompt();
 }
 
@@ -22,6 +24,14 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
       body.question as string,
       body.hexagramName as string,
       body.hexagramNumber as number
+    );
+  }
+  if (type === "mass") {
+    return buildMassUserPrompt(
+      body.theme as MassTheme,
+      body.groupNumber as number,
+      body.groupSymbol as string,
+      body.cards as Array<{ nameZh: string; name: string; isReversed: boolean }>
     );
   }
   return body.question as string;
