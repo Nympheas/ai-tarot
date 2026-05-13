@@ -3,14 +3,16 @@ import { getTarotSystemPrompt, buildTarotUserPrompt } from "@/lib/prompts/tarot"
 import { getIChingSystemPrompt, buildIChingUserPrompt } from "@/lib/prompts/iching";
 import { getMassSystemPrompt, buildMassUserPrompt, MassTheme } from "@/lib/prompts/mass";
 import { getZiweiSystemPrompt, buildZiweiUserPrompt, ZiweiFocusArea } from "@/lib/prompts/ziwei";
+import { getAstroSystemPrompt, buildAstroUserPrompt, AstroFocusArea } from "@/lib/prompts/astro";
 
-type DivinationType = "tarot" | "iching" | "mass" | "ziwei";
+type DivinationType = "tarot" | "iching" | "mass" | "ziwei" | "astro";
 type Message = { role: "user" | "assistant"; content: string };
 
 function getSystemPrompt(type: DivinationType): string {
   if (type === "iching") return getIChingSystemPrompt();
   if (type === "mass")   return getMassSystemPrompt();
   if (type === "ziwei")  return getZiweiSystemPrompt();
+  if (type === "astro")  return getAstroSystemPrompt();
   return getTarotSystemPrompt();
 }
 
@@ -47,6 +49,17 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
       body.shichenRange as string,
       body.gender as "male" | "female",
       body.focusArea as ZiweiFocusArea
+    );
+  }
+  if (type === "astro") {
+    return buildAstroUserPrompt(
+      body.birthYear as number,
+      body.birthMonth as number,
+      body.birthDay as number,
+      body.birthHour as number,
+      body.birthMinute as number,
+      body.birthCity as string,
+      body.focusArea as AstroFocusArea
     );
   }
   return body.question as string;

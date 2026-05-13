@@ -7,6 +7,7 @@ const links = [
   { href: "/tarot",   label: "塔罗", icon: "🔮" },
   { href: "/iching",  label: "易经", icon: "☯"  },
   { href: "/ziwei",   label: "紫微", icon: "⭐" },
+  { href: "/astro",   label: "占星", icon: "🌠" },
   { href: "/mass",    label: "大众", icon: "💕" },
   { href: "/history", label: "历史", icon: "📜" },
 ];
@@ -16,7 +17,7 @@ export function Nav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-safe">
-      <div className="mb-4 flex gap-1 rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl px-3 py-2 shadow-2xl">
+      <div className="mb-4 flex gap-0.5 rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl px-2 py-2 shadow-2xl">
         {links.map((link) => {
           const active = pathname.startsWith(link.href);
           return (
