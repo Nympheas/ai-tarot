@@ -4,11 +4,13 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import { ReadingLoader } from "@/components/ReadingLoader";
-import { drawCards } from "@/lib/divination/tarot-cards";
+import { drawCards, MAJOR_ARCANA } from "@/lib/divination/tarot-cards";
 import { saveReading } from "@/lib/storage";
 import { MassTheme, THEME_LABELS, POPULAR_QUESTIONS } from "@/lib/prompts/mass";
 
 type Step = "setup" | "reading";
+type InputMode = "auto" | "manual";
+type CardInput = { name: string; isReversed: boolean };
 
 const THEMES: { key: MassTheme; label: string; emoji: string; desc: string }[] = [
   { key: "love",   label: "感情运势",     emoji: "💕", desc: "爱情·关系·缘分" },
@@ -34,10 +36,17 @@ const ACCENT = {
   amber:  { border: "border-amber-500/30",  bg: "bg-amber-900/10",  btn: "from-amber-600 to-orange-600", badge: "bg-amber-500/10 text-amber-300 border-amber-500/20" },
 };
 
+const emptyCardInputs = (): CardInput[] =>
+  Array(5).fill(null).map(() => ({ name: "", isReversed: false }));
+
 export default function MassPage() {
   const [step, setStep] = useState<Step>("setup");
   const [theme, setTheme] = useState<MassTheme>("love");
   const [question, setQuestion] = useState("");
+  const [inputMode, setInputMode] = useState<InputMode>("auto");
+  const [manualCards, setManualCards] = useState<CardInput[][]>([
+    emptyCardInputs(), emptyCardInputs(), emptyCardInputs(),
+  ]);
   const [groups, setGroups] = useState<GroupState[]>([
     { status: "idle", content: "" },
     { status: "idle", content: "" },
@@ -48,11 +57,24 @@ export default function MassPage() {
     setGroups((prev) => prev.map((g, i) => (i === index ? { ...g, ...patch } : g)));
   }
 
+  function updateManualCard(groupIdx: number, cardIdx: number, patch: Partial<CardInput>) {
+    setManualCards((prev) =>
+      prev.map((grp, gi) =>
+        gi === groupIdx
+          ? grp.map((card, ci) => (ci === cardIdx ? { ...card, ...patch } : card))
+          : grp
+      )
+    );
+  }
+
   async function generateGroup(index: number) {
     const group = GROUPS[index];
     updateGroup(index, { status: "loading", content: "" });
 
-    const cards = drawCards(5).map((c) => ({ ...c, isReversed: Math.random() > 0.5 }));
+    const cards =
+      inputMode === "manual"
+        ? manualCards[index].map((c) => ({ nameZh: c.name, name: c.name, isReversed: c.isReversed }))
+        : drawCards(5).map((c) => ({ ...c, isReversed: Math.random() > 0.5 }));
 
     const res = await fetch("/api/divination", {
       method: "POST",
@@ -169,6 +191,36 @@ export default function MassPage() {
               />
             </div>
 
+            {/* Input Mode */}
+            <div className="flex flex-col gap-3">
+              <p className="text-slate-400 text-sm">抽牌方式</p>
+              <div className="flex rounded-xl border border-slate-800 overflow-hidden">
+                <button
+                  onClick={() => setInputMode("auto")}
+                  className={`flex-1 py-2.5 text-sm font-medium transition-all cursor-pointer border-r border-slate-800 ${
+                    inputMode === "auto"
+                      ? "bg-pink-900/30 text-pink-200"
+                      : "text-slate-500 hover:text-slate-400"
+                  }`}
+                >
+                  🎴 随机抽牌
+                </button>
+                <button
+                  onClick={() => setInputMode("manual")}
+                  className={`flex-1 py-2.5 text-sm font-medium transition-all cursor-pointer ${
+                    inputMode === "manual"
+                      ? "bg-pink-900/30 text-pink-200"
+                      : "text-slate-500 hover:text-slate-400"
+                  }`}
+                >
+                  ✍️ 手动输入牌
+                </button>
+              </div>
+              {inputMode === "manual" && (
+                <p className="text-slate-600 text-xs">进入解读后，在每组面板中填入实际抽到的牌</p>
+              )}
+            </div>
+
             <motion.button
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               disabled={!question.trim()}
@@ -186,13 +238,16 @@ export default function MassPage() {
 
             {/* Header info */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span>{currentTheme.emoji}</span>
                 <span className="text-white text-sm font-medium">{currentTheme.label}</span>
                 <span className="text-slate-500 text-xs">·</span>
-                <span className="text-pink-300/70 text-xs truncate max-w-[160px]">「{question}」</span>
+                <span className="text-pink-300/70 text-xs truncate max-w-[140px]">「{question}」</span>
+                {inputMode === "manual" && (
+                  <span className="text-slate-600 text-xs">· 手动输牌</span>
+                )}
               </div>
-              <button onClick={reset} className="text-slate-600 text-xs hover:text-slate-400 cursor-pointer">
+              <button onClick={reset} className="text-slate-600 text-xs hover:text-slate-400 cursor-pointer shrink-0">
                 重新设置
               </button>
             </div>
@@ -201,6 +256,9 @@ export default function MassPage() {
             {GROUPS.map((group, i) => {
               const g = groups[i];
               const ac = ACCENT[group.accent];
+              const cards = manualCards[i];
+              const allCardsFilled = cards.every((c) => c.name.trim() !== "");
+              const canGenerate = inputMode === "auto" || allCardsFilled;
 
               return (
                 <motion.div
@@ -224,9 +282,13 @@ export default function MassPage() {
                     </div>
                     {g.status === "idle" && (
                       <motion.button
-                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                        onClick={() => generateGroup(i)}
-                        className={`px-4 py-2 rounded-full bg-gradient-to-r ${ac.btn} text-white text-xs font-medium cursor-pointer shadow-md`}
+                        whileHover={canGenerate ? { scale: 1.05 } : {}}
+                        whileTap={canGenerate ? { scale: 0.95 } : {}}
+                        onClick={() => canGenerate && generateGroup(i)}
+                        disabled={!canGenerate}
+                        className={`px-4 py-2 rounded-full bg-gradient-to-r ${ac.btn} text-white text-xs font-medium shadow-md transition-opacity ${
+                          canGenerate ? "cursor-pointer" : "opacity-30 cursor-not-allowed"
+                        }`}
                       >
                         生成第 {group.number} 组
                       </motion.button>
@@ -236,10 +298,46 @@ export default function MassPage() {
                         onClick={() => updateGroup(i, { status: "idle", content: "" })}
                         className="text-slate-600 text-xs hover:text-slate-400 cursor-pointer"
                       >
-                        重抽
+                        {inputMode === "manual" ? "重新生成" : "重抽"}
                       </button>
                     )}
                   </div>
+
+                  {/* Manual card inputs */}
+                  {inputMode === "manual" && g.status === "idle" && (
+                    <div className="px-5 pb-5 border-t border-white/5 pt-4 flex flex-col gap-2.5">
+                      {cards.map((card, ci) => (
+                        <div key={ci} className="flex items-center gap-2">
+                          <span className="text-slate-600 text-xs w-8 shrink-0">第{ci + 1}张</span>
+                          <input
+                            list={`datalist-${i}`}
+                            value={card.name}
+                            onChange={(e) => updateManualCard(i, ci, { name: e.target.value })}
+                            placeholder="牌名，如：星星、权杖三..."
+                            className="flex-1 rounded-lg bg-slate-900/80 border border-slate-700/40 text-white text-xs px-3 py-2 outline-none focus:border-slate-500 placeholder:text-slate-700 min-w-0"
+                          />
+                          <button
+                            onClick={() => updateManualCard(i, ci, { isReversed: !card.isReversed })}
+                            className={`text-xs px-2.5 py-2 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                              card.isReversed
+                                ? "border-orange-500/40 bg-orange-900/20 text-orange-300"
+                                : "border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+                            }`}
+                          >
+                            {card.isReversed ? "逆位" : "正位"}
+                          </button>
+                        </div>
+                      ))}
+                      <datalist id={`datalist-${i}`}>
+                        {MAJOR_ARCANA.map((c) => (
+                          <option key={c.id} value={c.nameZh} />
+                        ))}
+                      </datalist>
+                      {!allCardsFilled && (
+                        <p className="text-slate-700 text-xs mt-0.5">输入全部 5 张牌后可生成</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Content */}
                   <AnimatePresence>
@@ -254,8 +352,10 @@ export default function MassPage() {
                         animate={{ opacity: 1 }}
                         className="px-5 pb-6 border-t border-white/5 pt-4"
                       >
-                        <div className="prose prose-invert prose-sm max-w-none text-slate-300 leading-relaxed"
-                          style={{ fontSize: "0.875rem" }}>
+                        <div
+                          className="prose prose-invert prose-sm max-w-none text-slate-300 leading-relaxed"
+                          style={{ fontSize: "0.875rem" }}
+                        >
                           <ReactMarkdown
                             components={{
                               h3: ({ children }) => (
@@ -267,9 +367,7 @@ export default function MassPage() {
                               strong: ({ children }) => (
                                 <strong className="text-white font-semibold">{children}</strong>
                               ),
-                              hr: () => (
-                                <div className="my-4 border-t border-white/8" />
-                              ),
+                              hr: () => <div className="my-4 border-t border-white/8" />,
                               ul: ({ children }) => <ul className="flex flex-col gap-1.5 my-3">{children}</ul>,
                               li: ({ children }) => (
                                 <li className="text-slate-300 text-sm pl-3 relative before:absolute before:left-0 before:content-['•'] before:text-pink-400">
@@ -291,7 +389,6 @@ export default function MassPage() {
               );
             })}
 
-            {/* Reset button */}
             {anyDone && (
               <motion.button
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
