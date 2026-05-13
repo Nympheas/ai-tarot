@@ -2,83 +2,55 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GroupSelect, GROUPS } from "@/components/mass/GroupSelect";
-import { ReadingOutput } from "@/components/tarot/ReadingOutput";
+import ReactMarkdown from "react-markdown";
 import { ReadingLoader } from "@/components/ReadingLoader";
 import { drawCards } from "@/lib/divination/tarot-cards";
 import { saveReading } from "@/lib/storage";
-import { MassTheme, THEME_LABELS } from "@/lib/prompts/mass";
+import { MassTheme, THEME_LABELS, POPULAR_QUESTIONS } from "@/lib/prompts/mass";
 
-type Message = { role: "user" | "assistant"; content: string };
-type Step = "theme" | "question" | "group" | "reading";
+type Step = "setup" | "reading";
 
 const THEMES: { key: MassTheme; label: string; emoji: string; desc: string }[] = [
-  { key: "love",    label: "感情运势",     emoji: "💕", desc: "爱情·关系·缘分" },
-  { key: "career",  label: "事业学业",     emoji: "🚀", desc: "工作·考试·成长" },
-  { key: "wealth",  label: "财富资源",     emoji: "✨", desc: "金钱·机遇·丰盛" },
-  { key: "energy",  label: "近期整体能量", emoji: "🌙", desc: "综合运势·本周能量" },
+  { key: "love",   label: "感情运势",     emoji: "💕", desc: "爱情·关系·缘分" },
+  { key: "career", label: "事业学业",     emoji: "🚀", desc: "工作·考试·成长" },
+  { key: "wealth", label: "财富资源",     emoji: "✨", desc: "金钱·机遇·丰盛" },
+  { key: "energy", label: "近期整体能量", emoji: "🌙", desc: "综合运势·本周能量" },
 ];
 
-const POPULAR_QUESTIONS: Record<MassTheme, string[]> = {
-  love: [
-    "他/她对我有感情吗？",
-    "我们有未来吗？",
-    "我何时能遇到对的人？",
-    "我们现在的关系走向如何？",
-    "分开后还有复合的可能吗？",
-    "我该主动还是等待？",
-  ],
-  career: [
-    "我现在的工作方向对吗？",
-    "跳槽的时机到了吗？",
-    "我适合创业吗？",
-    "我的副业能做起来吗？",
-    "考试/面试会顺利吗？",
-    "我的努力会被看见吗？",
-  ],
-  wealth: [
-    "近期财运如何？",
-    "我的投资会有回报吗？",
-    "什么时候会有大的进账？",
-    "我适合做生意吗？",
-    "有意外之财的可能吗？",
-    "我的偏财运怎么样？",
-  ],
-  energy: [
-    "近期我的整体能量如何？",
-    "有什么事情需要我注意的？",
-    "我该放手哪些东西？",
-    "最近有什么好的转机吗？",
-    "我现在的状态适合行动吗？",
-    "宇宙想告诉我什么？",
-  ],
+const GROUPS = [
+  { number: 1, symbol: "🔮", name: "紫水晶", accent: "purple" },
+  { number: 2, symbol: "🌙", name: "月光石", accent: "blue" },
+  { number: 3, symbol: "✨", name: "黄水晶", accent: "amber" },
+] as const;
+
+type GroupState = {
+  status: "idle" | "loading" | "done";
+  content: string;
+};
+
+const ACCENT = {
+  purple: { border: "border-purple-500/30", bg: "bg-purple-900/10", btn: "from-purple-600 to-indigo-600", badge: "bg-purple-500/10 text-purple-300 border-purple-500/20" },
+  blue:   { border: "border-blue-500/30",   bg: "bg-blue-900/10",   btn: "from-blue-600 to-cyan-600",    badge: "bg-blue-500/10 text-blue-300 border-blue-500/20" },
+  amber:  { border: "border-amber-500/30",  bg: "bg-amber-900/10",  btn: "from-amber-600 to-orange-600", badge: "bg-amber-500/10 text-amber-300 border-amber-500/20" },
 };
 
 export default function MassPage() {
-  const [step, setStep] = useState<Step>("theme");
+  const [step, setStep] = useState<Step>("setup");
   const [theme, setTheme] = useState<MassTheme>("love");
   const [question, setQuestion] = useState("");
-  const [selectedGroup, setSelectedGroup] = useState<typeof GROUPS[number] | null>(null);
-  const [output, setOutput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [groups, setGroups] = useState<GroupState[]>([
+    { status: "idle", content: "" },
+    { status: "idle", content: "" },
+    { status: "idle", content: "" },
+  ]);
 
-  function handleThemeSelect(t: MassTheme) {
-    setTheme(t);
-    setQuestion("");
-    setStep("question");
+  function updateGroup(index: number, patch: Partial<GroupState>) {
+    setGroups((prev) => prev.map((g, i) => (i === index ? { ...g, ...patch } : g)));
   }
 
-  function handleQuestionConfirm() {
-    if (!question.trim()) return;
-    setStep("group");
-  }
-
-  async function startReading(group: typeof GROUPS[number]) {
-    setSelectedGroup(group);
-    setStep("reading");
-    setOutput("");
-    setIsStreaming(true);
+  async function generateGroup(index: number) {
+    const group = GROUPS[index];
+    updateGroup(index, { status: "loading", content: "" });
 
     const cards = drawCards(5).map((c) => ({ ...c, isReversed: Math.random() > 0.5 }));
 
@@ -96,7 +68,8 @@ export default function MassPage() {
       }),
     });
 
-    if (!res.body) return;
+    if (!res.body) { updateGroup(index, { status: "idle" }); return; }
+
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let full = "";
@@ -104,211 +77,229 @@ export default function MassPage() {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      full += decoder.decode(value);
-      setOutput(full);
+      const chunk = decoder.decode(value);
+      full += chunk;
+      updateGroup(index, { content: full });
     }
 
-    setIsStreaming(false);
-    setMessages([
-      { role: "user", content: `第${group.number}组 · ${THEME_LABELS[theme]} · ${question}` },
-      { role: "assistant", content: full },
-    ]);
+    updateGroup(index, { status: "done", content: full });
     saveReading({
       type: "tarot",
-      question: `大众占卜 · ${THEME_LABELS[theme]} · ${question}`,
+      question: `大众占卜 · ${THEME_LABELS[theme]} · 第${group.number}组 · ${question}`,
       result: full,
       metadata: { massTheme: theme, group: group.number, question, cards },
     });
   }
 
-  async function handleFollowUp(followUpQuestion: string) {
-    setIsStreaming(true);
-    const newMessages: Message[] = [...messages, { role: "user", content: followUpQuestion }];
-
-    const res = await fetch("/api/divination", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "mass",
-        theme,
-        question: followUpQuestion,
-        groupNumber: selectedGroup!.number,
-        groupSymbol: selectedGroup!.symbol,
-        cards: [],
-        messages: newMessages,
-      }),
-    });
-
-    if (!res.body) return;
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let reply = "";
-    setOutput((prev) => prev + "\n\n---\n\n**你问：** " + followUpQuestion + "\n\n");
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value);
-      reply += chunk;
-      setOutput((prev) => prev + chunk);
-    }
-
-    setIsStreaming(false);
-    setMessages([...newMessages, { role: "assistant", content: reply }]);
-  }
-
   function reset() {
-    setStep("theme");
-    setSelectedGroup(null);
+    setStep("setup");
     setQuestion("");
-    setOutput("");
-    setMessages([]);
+    setGroups([
+      { status: "idle", content: "" },
+      { status: "idle", content: "" },
+      { status: "idle", content: "" },
+    ]);
   }
 
-  const currentTheme = THEMES.find((t) => t.key === theme);
+  const currentTheme = THEMES.find((t) => t.key === theme)!;
+  const anyDone = groups.some((g) => g.status === "done");
 
   return (
     <main className="min-h-screen bg-[#080814] text-white px-4 py-12 pb-28">
-      <div className="max-w-2xl mx-auto flex flex-col items-center gap-10">
+      <div className="max-w-2xl mx-auto flex flex-col items-center gap-8">
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
           <h1 className="text-3xl font-light tracking-widest text-pink-200">大众占卜</h1>
-          <p className="text-slate-500 mt-2 text-sm">选择主题 · 输入问题 · 跟随直觉</p>
+          <p className="text-slate-500 mt-2 text-sm">为占卜博主生成 · 三组同场解读</p>
         </motion.div>
 
-        {/* Step 1: Theme */}
-        {step === "theme" && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col gap-4">
-            <p className="text-slate-400 text-sm text-center">今天想看哪方面的能量？</p>
-            <div className="grid grid-cols-2 gap-3">
-              {THEMES.map((t, i) => (
-                <motion.button
-                  key={t.key}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.08 }}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => handleThemeSelect(t.key)}
-                  className="flex flex-col items-center gap-2 py-6 rounded-2xl border border-pink-500/20 bg-gradient-to-b from-pink-900/10 to-transparent hover:border-pink-500/40 transition-all cursor-pointer"
-                >
-                  <span className="text-3xl">{t.emoji}</span>
-                  <span className="text-white font-medium text-sm">{t.label}</span>
-                  <span className="text-slate-500 text-xs">{t.desc}</span>
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-        )}
+        {/* Setup */}
+        {step === "setup" && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col gap-6">
 
-        {/* Step 2: Question */}
-        {step === "question" && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col gap-5">
-            {/* Breadcrumb */}
-            <div className="flex items-center gap-2">
-              <span className="text-xl">{currentTheme?.emoji}</span>
-              <span className="text-white font-medium text-sm">{currentTheme?.label}</span>
-              <button onClick={() => setStep("theme")} className="text-slate-600 text-xs ml-1 hover:text-slate-400 cursor-pointer">
-                换主题
-              </button>
+            {/* Theme */}
+            <div className="flex flex-col gap-3">
+              <p className="text-slate-400 text-sm">选择主题</p>
+              <div className="grid grid-cols-2 gap-2">
+                {THEMES.map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => { setTheme(t.key); setQuestion(""); }}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all cursor-pointer text-left ${
+                      theme === t.key
+                        ? "border-pink-400/60 bg-pink-900/20 text-white"
+                        : "border-slate-800 text-slate-400 hover:border-slate-700"
+                    }`}
+                  >
+                    <span className="text-xl">{t.emoji}</span>
+                    <div>
+                      <p className="text-sm font-medium">{t.label}</p>
+                      <p className="text-xs text-slate-500">{t.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <p className="text-slate-400 text-sm">你想问什么？</p>
-
-            {/* Popular questions */}
-            <div className="flex flex-wrap gap-2">
-              {POPULAR_QUESTIONS[theme].map((q) => (
-                <motion.button
-                  key={q}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setQuestion(q)}
-                  className={`px-3 py-1.5 rounded-full text-xs border transition-all cursor-pointer ${
-                    question === q
-                      ? "border-pink-400 bg-pink-500/20 text-pink-200"
-                      : "border-slate-700 text-slate-400 hover:border-pink-500/40 hover:text-slate-300"
-                  }`}
-                >
-                  {q}
-                </motion.button>
-              ))}
-            </div>
-
-            {/* Custom input */}
-            <div className="flex flex-col gap-2">
-              <p className="text-slate-600 text-xs">或者自己输入</p>
+            {/* Question */}
+            <div className="flex flex-col gap-3">
+              <p className="text-slate-400 text-sm">这期的问题</p>
+              <div className="flex flex-wrap gap-2">
+                {POPULAR_QUESTIONS[theme].map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => setQuestion(q)}
+                    className={`px-3 py-1.5 rounded-full text-xs border transition-all cursor-pointer ${
+                      question === q
+                        ? "border-pink-400 bg-pink-500/20 text-pink-200"
+                        : "border-slate-700 text-slate-400 hover:border-pink-500/40 hover:text-slate-300"
+                    }`}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
               <textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                placeholder="写下你心里的问题..."
+                placeholder="或自己输入这期主题问题..."
                 rows={2}
                 className="w-full rounded-2xl bg-slate-900/60 border border-pink-500/20 text-white placeholder:text-slate-600 px-4 py-3 text-sm outline-none focus:border-pink-400/50 transition-colors resize-none"
               />
             </div>
 
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               disabled={!question.trim()}
-              onClick={handleQuestionConfirm}
+              onClick={() => setStep("reading")}
               className="w-full py-4 rounded-full bg-gradient-to-r from-pink-600 to-rose-600 text-white font-medium disabled:opacity-30 shadow-lg shadow-pink-500/20 cursor-pointer"
             >
-              确认问题，选择牌组
+              进入解读，逐组生成
             </motion.button>
           </motion.div>
         )}
 
-        {/* Step 3: Group Selection */}
-        {step === "group" && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col items-center gap-6">
-            <div className="w-full flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{currentTheme?.emoji}</span>
-                <span className="text-white font-medium text-sm">{currentTheme?.label}</span>
-                <button onClick={() => setStep("question")} className="text-slate-600 text-xs ml-1 hover:text-slate-400 cursor-pointer">
-                  改问题
-                </button>
-              </div>
-              <p className="text-pink-300/70 text-sm truncate">「{question}」</p>
-            </div>
-            <GroupSelect onSelect={startReading} />
-          </motion.div>
-        )}
-
-        {/* Step 4: Reading */}
+        {/* Reading: 3 groups */}
         {step === "reading" && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col items-center gap-6">
-            <AnimatePresence>
-              {selectedGroup && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex flex-col items-center gap-1"
-                >
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-pink-500/20 bg-pink-900/10">
-                    <span>{selectedGroup.symbol}</span>
-                    <span className="text-pink-200 text-sm">第 {selectedGroup.number} 组 · {THEME_LABELS[theme]}</span>
-                  </div>
-                  <p className="text-slate-500 text-xs">「{question}」</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col gap-5">
 
-            {!output && isStreaming && <ReadingLoader />}
-            {output && (
-              <ReadingOutput
-                content={output}
-                isStreaming={isStreaming}
-                onFollowUp={handleFollowUp}
-              />
-            )}
-            {!isStreaming && output && (
-              <button
-                onClick={reset}
-                className="text-slate-600 text-xs hover:text-slate-400 transition-colors cursor-pointer pb-4"
-              >
-                重新占卜
+            {/* Header info */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span>{currentTheme.emoji}</span>
+                <span className="text-white text-sm font-medium">{currentTheme.label}</span>
+                <span className="text-slate-500 text-xs">·</span>
+                <span className="text-pink-300/70 text-xs truncate max-w-[160px]">「{question}」</span>
+              </div>
+              <button onClick={reset} className="text-slate-600 text-xs hover:text-slate-400 cursor-pointer">
+                重新设置
               </button>
+            </div>
+
+            {/* Group panels */}
+            {GROUPS.map((group, i) => {
+              const g = groups[i];
+              const ac = ACCENT[group.accent];
+
+              return (
+                <motion.div
+                  key={group.number}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className={`rounded-2xl border ${ac.border} ${ac.bg} overflow-hidden`}
+                >
+                  {/* Group header */}
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{group.symbol}</span>
+                      <div>
+                        <p className="text-white font-medium text-sm">第 {group.number} 组</p>
+                        <p className="text-slate-500 text-xs">{group.name}</p>
+                      </div>
+                      {g.status === "done" && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${ac.badge}`}>已生成</span>
+                      )}
+                    </div>
+                    {g.status === "idle" && (
+                      <motion.button
+                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                        onClick={() => generateGroup(i)}
+                        className={`px-4 py-2 rounded-full bg-gradient-to-r ${ac.btn} text-white text-xs font-medium cursor-pointer shadow-md`}
+                      >
+                        生成第 {group.number} 组
+                      </motion.button>
+                    )}
+                    {g.status === "done" && (
+                      <button
+                        onClick={() => updateGroup(i, { status: "idle", content: "" })}
+                        className="text-slate-600 text-xs hover:text-slate-400 cursor-pointer"
+                      >
+                        重抽
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <AnimatePresence>
+                    {g.status === "loading" && !g.content && (
+                      <div className="px-5 pb-5">
+                        <ReadingLoader />
+                      </div>
+                    )}
+                    {(g.status === "loading" || g.status === "done") && g.content && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="px-5 pb-6 border-t border-white/5 pt-4"
+                      >
+                        <div className="prose prose-invert prose-sm max-w-none text-slate-300 leading-relaxed"
+                          style={{ fontSize: "0.875rem" }}>
+                          <ReactMarkdown
+                            components={{
+                              h3: ({ children }) => (
+                                <h3 className="text-white font-medium text-sm mt-6 mb-2 first:mt-0">{children}</h3>
+                              ),
+                              p: ({ children }) => (
+                                <p className="text-slate-300 text-sm leading-[1.8] mb-3">{children}</p>
+                              ),
+                              strong: ({ children }) => (
+                                <strong className="text-white font-semibold">{children}</strong>
+                              ),
+                              hr: () => (
+                                <div className="my-4 border-t border-white/8" />
+                              ),
+                              ul: ({ children }) => <ul className="flex flex-col gap-1.5 my-3">{children}</ul>,
+                              li: ({ children }) => (
+                                <li className="text-slate-300 text-sm pl-3 relative before:absolute before:left-0 before:content-['•'] before:text-pink-400">
+                                  {children}
+                                </li>
+                              ),
+                            }}
+                          >
+                            {g.content}
+                          </ReactMarkdown>
+                          {g.status === "loading" && (
+                            <span className="inline-block w-1.5 h-4 bg-pink-400 rounded-sm animate-pulse ml-0.5 align-middle" />
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+
+            {/* Reset button */}
+            {anyDone && (
+              <motion.button
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                onClick={reset}
+                className="text-slate-600 text-xs hover:text-slate-400 transition-colors cursor-pointer text-center pb-2"
+              >
+                重新开始
+              </motion.button>
             )}
           </motion.div>
         )}
