@@ -11,6 +11,7 @@ import { MassTheme, THEME_LABELS, POPULAR_QUESTIONS } from "@/lib/prompts/mass";
 type Step = "setup" | "reading";
 type InputMode = "auto" | "manual";
 type CardInput = { name: string; isReversed: boolean };
+type GroupCards = { verification: CardInput[]; reading: CardInput[] };
 
 const THEMES: { key: MassTheme; label: string; emoji: string; desc: string }[] = [
   { key: "love",   label: "感情运势",     emoji: "💕", desc: "爱情·关系·缘分" },
@@ -25,27 +26,26 @@ const GROUPS = [
   { number: 3, symbol: "✨", name: "黄水晶", accent: "amber" },
 ] as const;
 
-type GroupState = {
-  status: "idle" | "loading" | "done";
-  content: string;
-};
+type GroupState = { status: "idle" | "loading" | "done"; content: string };
 
 const ACCENT = {
-  purple: { border: "border-purple-500/30", bg: "bg-purple-900/10", btn: "from-purple-600 to-indigo-600", badge: "bg-purple-500/10 text-purple-300 border-purple-500/20" },
-  blue:   { border: "border-blue-500/30",   bg: "bg-blue-900/10",   btn: "from-blue-600 to-cyan-600",    badge: "bg-blue-500/10 text-blue-300 border-blue-500/20" },
-  amber:  { border: "border-amber-500/30",  bg: "bg-amber-900/10",  btn: "from-amber-600 to-orange-600", badge: "bg-amber-500/10 text-amber-300 border-amber-500/20" },
+  purple: { border: "border-purple-500/30", bg: "bg-purple-900/10", btn: "from-purple-600 to-indigo-600", badge: "bg-purple-500/10 text-purple-300 border-purple-500/20", sub: "text-purple-400/70" },
+  blue:   { border: "border-blue-500/30",   bg: "bg-blue-900/10",   btn: "from-blue-600 to-cyan-600",    badge: "bg-blue-500/10 text-blue-300 border-blue-500/20",   sub: "text-blue-400/70" },
+  amber:  { border: "border-amber-500/30",  bg: "bg-amber-900/10",  btn: "from-amber-600 to-orange-600", badge: "bg-amber-500/10 text-amber-300 border-amber-500/20", sub: "text-amber-400/70" },
 };
 
-const emptyCardInputs = (): CardInput[] =>
-  Array(5).fill(null).map(() => ({ name: "", isReversed: false }));
+const emptyGroupCards = (): GroupCards => ({
+  verification: Array(3).fill(null).map(() => ({ name: "", isReversed: false })),
+  reading:      Array(5).fill(null).map(() => ({ name: "", isReversed: false })),
+});
 
 export default function MassPage() {
-  const [step, setStep] = useState<Step>("setup");
-  const [theme, setTheme] = useState<MassTheme>("love");
+  const [step, setStep]       = useState<Step>("setup");
+  const [theme, setTheme]     = useState<MassTheme>("love");
   const [question, setQuestion] = useState("");
   const [inputMode, setInputMode] = useState<InputMode>("auto");
-  const [manualCards, setManualCards] = useState<CardInput[][]>([
-    emptyCardInputs(), emptyCardInputs(), emptyCardInputs(),
+  const [manualCards, setManualCards] = useState<GroupCards[]>([
+    emptyGroupCards(), emptyGroupCards(), emptyGroupCards(),
   ]);
   const [groups, setGroups] = useState<GroupState[]>([
     { status: "idle", content: "" },
@@ -57,11 +57,16 @@ export default function MassPage() {
     setGroups((prev) => prev.map((g, i) => (i === index ? { ...g, ...patch } : g)));
   }
 
-  function updateManualCard(groupIdx: number, cardIdx: number, patch: Partial<CardInput>) {
+  function updateCard(
+    groupIdx: number,
+    type: "verification" | "reading",
+    cardIdx: number,
+    patch: Partial<CardInput>
+  ) {
     setManualCards((prev) =>
       prev.map((grp, gi) =>
         gi === groupIdx
-          ? grp.map((card, ci) => (ci === cardIdx ? { ...card, ...patch } : card))
+          ? { ...grp, [type]: grp[type].map((c, ci) => (ci === cardIdx ? { ...c, ...patch } : c)) }
           : grp
       )
     );
@@ -71,10 +76,17 @@ export default function MassPage() {
     const group = GROUPS[index];
     updateGroup(index, { status: "loading", content: "" });
 
-    const cards =
-      inputMode === "manual"
-        ? manualCards[index].map((c) => ({ nameZh: c.name, name: c.name, isReversed: c.isReversed }))
-        : drawCards(5).map((c) => ({ ...c, isReversed: Math.random() > 0.5 }));
+    let verificationCards: { nameZh: string; name: string; isReversed: boolean }[];
+    let readingCards: { nameZh: string; name: string; isReversed: boolean }[];
+
+    if (inputMode === "manual") {
+      verificationCards = manualCards[index].verification.map((c) => ({ nameZh: c.name, name: c.name, isReversed: c.isReversed }));
+      readingCards      = manualCards[index].reading.map((c)      => ({ nameZh: c.name, name: c.name, isReversed: c.isReversed }));
+    } else {
+      const pool = drawCards(8).map((c) => ({ ...c, isReversed: Math.random() > 0.5 }));
+      verificationCards = pool.slice(0, 3);
+      readingCards      = pool.slice(3);
+    }
 
     const res = await fetch("/api/divination", {
       method: "POST",
@@ -85,7 +97,8 @@ export default function MassPage() {
         question,
         groupNumber: group.number,
         groupSymbol: group.symbol,
-        cards,
+        verificationCards,
+        readingCards,
         messages: [],
       }),
     });
@@ -109,7 +122,7 @@ export default function MassPage() {
       type: "tarot",
       question: `大众占卜 · ${THEME_LABELS[theme]} · 第${group.number}组 · ${question}`,
       result: full,
-      metadata: { massTheme: theme, group: group.number, question, cards },
+      metadata: { massTheme: theme, group: group.number, question, verificationCards, readingCards },
     });
   }
 
@@ -198,9 +211,7 @@ export default function MassPage() {
                 <button
                   onClick={() => setInputMode("auto")}
                   className={`flex-1 py-2.5 text-sm font-medium transition-all cursor-pointer border-r border-slate-800 ${
-                    inputMode === "auto"
-                      ? "bg-pink-900/30 text-pink-200"
-                      : "text-slate-500 hover:text-slate-400"
+                    inputMode === "auto" ? "bg-pink-900/30 text-pink-200" : "text-slate-500 hover:text-slate-400"
                   }`}
                 >
                   🎴 随机抽牌
@@ -208,16 +219,14 @@ export default function MassPage() {
                 <button
                   onClick={() => setInputMode("manual")}
                   className={`flex-1 py-2.5 text-sm font-medium transition-all cursor-pointer ${
-                    inputMode === "manual"
-                      ? "bg-pink-900/30 text-pink-200"
-                      : "text-slate-500 hover:text-slate-400"
+                    inputMode === "manual" ? "bg-pink-900/30 text-pink-200" : "text-slate-500 hover:text-slate-400"
                   }`}
                 >
                   ✍️ 手动输入牌
                 </button>
               </div>
               {inputMode === "manual" && (
-                <p className="text-slate-600 text-xs">进入解读后，在每组面板中填入实际抽到的牌</p>
+                <p className="text-slate-600 text-xs">每组需输入 3 张验证牌 + 5 张解读牌，共 8 张</p>
               )}
             </div>
 
@@ -232,7 +241,7 @@ export default function MassPage() {
           </motion.div>
         )}
 
-        {/* Reading: 3 groups */}
+        {/* Reading */}
         {step === "reading" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col gap-5">
 
@@ -254,11 +263,12 @@ export default function MassPage() {
 
             {/* Group panels */}
             {GROUPS.map((group, i) => {
-              const g = groups[i];
-              const ac = ACCENT[group.accent];
-              const cards = manualCards[i];
-              const allCardsFilled = cards.every((c) => c.name.trim() !== "");
-              const canGenerate = inputMode === "auto" || allCardsFilled;
+              const g   = groups[i];
+              const ac  = ACCENT[group.accent];
+              const gc  = manualCards[i];
+              const verifyDone = gc.verification.every((c) => c.name.trim() !== "");
+              const readDone   = gc.reading.every((c) => c.name.trim() !== "");
+              const canGenerate = inputMode === "auto" || (verifyDone && readDone);
 
               return (
                 <motion.div
@@ -305,36 +315,72 @@ export default function MassPage() {
 
                   {/* Manual card inputs */}
                   {inputMode === "manual" && g.status === "idle" && (
-                    <div className="px-5 pb-5 border-t border-white/5 pt-4 flex flex-col gap-2.5">
-                      {cards.map((card, ci) => (
-                        <div key={ci} className="flex items-center gap-2">
-                          <span className="text-slate-600 text-xs w-8 shrink-0">第{ci + 1}张</span>
-                          <input
-                            list={`datalist-${i}`}
-                            value={card.name}
-                            onChange={(e) => updateManualCard(i, ci, { name: e.target.value })}
-                            placeholder="牌名，如：星星、权杖三..."
-                            className="flex-1 rounded-lg bg-slate-900/80 border border-slate-700/40 text-white text-xs px-3 py-2 outline-none focus:border-slate-500 placeholder:text-slate-700 min-w-0"
-                          />
-                          <button
-                            onClick={() => updateManualCard(i, ci, { isReversed: !card.isReversed })}
-                            className={`text-xs px-2.5 py-2 rounded-lg border transition-all cursor-pointer shrink-0 ${
-                              card.isReversed
-                                ? "border-orange-500/40 bg-orange-900/20 text-orange-300"
-                                : "border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400"
-                            }`}
-                          >
-                            {card.isReversed ? "逆位" : "正位"}
-                          </button>
-                        </div>
-                      ))}
+                    <div className="px-5 pb-5 border-t border-white/5 pt-4 flex flex-col gap-5">
+
+                      {/* Verification cards */}
+                      <div className="flex flex-col gap-2">
+                        <p className={`text-xs font-medium ${ac.sub}`}>验证牌（3张）· 星座 / 当下状态 / 特定讯息</p>
+                        {gc.verification.map((card, ci) => (
+                          <div key={ci} className="flex items-center gap-2">
+                            <span className="text-slate-600 text-xs w-8 shrink-0">验{ci + 1}</span>
+                            <input
+                              list={`datalist-${i}`}
+                              value={card.name}
+                              onChange={(e) => updateCard(i, "verification", ci, { name: e.target.value })}
+                              placeholder="牌名，如：星星、权杖三..."
+                              className="flex-1 rounded-lg bg-slate-900/80 border border-slate-700/40 text-white text-xs px-3 py-2 outline-none focus:border-slate-500 placeholder:text-slate-700 min-w-0"
+                            />
+                            <button
+                              onClick={() => updateCard(i, "verification", ci, { isReversed: !card.isReversed })}
+                              className={`text-xs px-2.5 py-2 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                                card.isReversed
+                                  ? "border-orange-500/40 bg-orange-900/20 text-orange-300"
+                                  : "border-slate-700/50 text-slate-500 hover:border-slate-600"
+                              }`}
+                            >
+                              {card.isReversed ? "逆位" : "正位"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Reading cards */}
+                      <div className="flex flex-col gap-2">
+                        <p className={`text-xs font-medium ${ac.sub}`}>解读牌（5张）· 解析本期主题</p>
+                        {gc.reading.map((card, ci) => (
+                          <div key={ci} className="flex items-center gap-2">
+                            <span className="text-slate-600 text-xs w-8 shrink-0">读{ci + 1}</span>
+                            <input
+                              list={`datalist-${i}`}
+                              value={card.name}
+                              onChange={(e) => updateCard(i, "reading", ci, { name: e.target.value })}
+                              placeholder="牌名，如：月亮、圣杯Ace..."
+                              className="flex-1 rounded-lg bg-slate-900/80 border border-slate-700/40 text-white text-xs px-3 py-2 outline-none focus:border-slate-500 placeholder:text-slate-700 min-w-0"
+                            />
+                            <button
+                              onClick={() => updateCard(i, "reading", ci, { isReversed: !card.isReversed })}
+                              className={`text-xs px-2.5 py-2 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                                card.isReversed
+                                  ? "border-orange-500/40 bg-orange-900/20 text-orange-300"
+                                  : "border-slate-700/50 text-slate-500 hover:border-slate-600"
+                              }`}
+                            >
+                              {card.isReversed ? "逆位" : "正位"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
                       <datalist id={`datalist-${i}`}>
                         {ALL_CARDS.map((c) => (
                           <option key={c.id} value={c.nameZh} />
                         ))}
                       </datalist>
-                      {!allCardsFilled && (
-                        <p className="text-slate-700 text-xs mt-0.5">输入全部 5 张牌后可生成</p>
+
+                      {!(verifyDone && readDone) && (
+                        <p className="text-slate-700 text-xs -mt-2">
+                          {!verifyDone ? "请填写验证牌" : "请填写解读牌"}（共 8 张后可生成）
+                        </p>
                       )}
                     </div>
                   )}
@@ -352,10 +398,7 @@ export default function MassPage() {
                         animate={{ opacity: 1 }}
                         className="px-5 pb-6 border-t border-white/5 pt-4"
                       >
-                        <div
-                          className="prose prose-invert prose-sm max-w-none text-slate-300 leading-relaxed"
-                          style={{ fontSize: "0.875rem" }}
-                        >
+                        <div className="prose prose-invert prose-sm max-w-none text-slate-300 leading-relaxed" style={{ fontSize: "0.875rem" }}>
                           <ReactMarkdown
                             components={{
                               h3: ({ children }) => (
