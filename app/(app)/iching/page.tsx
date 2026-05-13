@@ -18,6 +18,7 @@ export default function IChingPage() {
   const [output, setOutput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [quotaError, setQuotaError] = useState<{ retryAfter?: number } | null>(null);
 
   async function startReading(name: string, number: number) {
     setHexagramName(name);
@@ -32,6 +33,12 @@ export default function IChingPage() {
       body: JSON.stringify({ type: "iching", question, hexagramName: name, hexagramNumber: number, messages }),
     });
 
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setIsStreaming(false);
+      setQuotaError({ retryAfter: res.status === 429 ? (data.retryAfter ?? 60) : undefined });
+      return;
+    }
     if (!res.body) return;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -62,6 +69,12 @@ export default function IChingPage() {
       body: JSON.stringify({ type: "iching", question: followUpQuestion, hexagramName, hexagramNumber, messages: newMessages }),
     });
 
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setIsStreaming(false);
+      setQuotaError({ retryAfter: res.status === 429 ? (data.retryAfter ?? 60) : undefined });
+      return;
+    }
     if (!res.body) return;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -85,6 +98,7 @@ export default function IChingPage() {
     setQuestion("");
     setOutput("");
     setMessages([]);
+    setQuotaError(null);
   }
 
   return (
@@ -139,6 +153,24 @@ export default function IChingPage() {
         {step === "reading" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col items-center gap-6">
             {!output && isStreaming && <ReadingLoader />}
+            {quotaError && (
+              <div className="w-full rounded-2xl border border-amber-500/20 bg-amber-900/10 px-6 py-5 flex flex-col gap-3">
+                <p className="text-amber-400/90 font-medium">今日免费额度已用完</p>
+                <p className="text-stone-400 text-sm leading-relaxed">
+                  Gemini 免费版每天限 20 次请求。
+                  {quotaError.retryAfter
+                    ? `请等约 ${quotaError.retryAfter} 秒后重试，或`
+                    : "请"}
+                  前往 Google AI Studio 开启计费，配额会提升到每天 1500 次。
+                </p>
+                <button
+                  onClick={reset}
+                  className="text-stone-500 text-xs hover:text-stone-300 cursor-pointer text-left"
+                >
+                  返回重新起卦 →
+                </button>
+              </div>
+            )}
             {output && (
               <ReadingOutput
                 content={output}
