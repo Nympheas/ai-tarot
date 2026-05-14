@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Content } from "@google/generative-ai";
+import { GoogleGenerativeAI, Content, GenerationConfig } from "@google/generative-ai";
 import { getTarotSystemPrompt, buildTarotUserPrompt } from "@/lib/prompts/tarot";
 import { getIChingSystemPrompt, buildIChingUserPrompt } from "@/lib/prompts/iching";
 import { getMassSystemPrompt, buildMassUserPrompt, MassTheme } from "@/lib/prompts/mass";
@@ -103,10 +103,13 @@ export async function POST(req: Request) {
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       systemInstruction: getSystemPrompt(type),
+      // thinkingConfig is not in SDK 0.24.1 types but IS in the Gemini API.
+      // Disabling thinking (budget=0) prevents it from eating into output tokens.
       generationConfig: {
-        maxOutputTokens: 8192,
+        maxOutputTokens: 16384,
         temperature: 0.95,
-      },
+        thinkingConfig: { thinkingBudget: 0 },
+      } as unknown as GenerationConfig,
     });
 
     const userPrompt = buildUserPrompt(type, body);
