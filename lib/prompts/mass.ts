@@ -93,7 +93,10 @@ export function getMassSystemPrompt(): string {
 - 口语化，用"我觉得"、"就是"、"你知道吗"
 - 牌名中英混合：比如"圣杯Ace"、"The Moon月亮牌"
 - 温暖、共情、有洞察力
-- 总字数 900-1100字`;
+- 总字数 900-1100字
+
+## 重要格式要求
+**直接从第一个章节标题（### ✨ 这组可能是你的星座）开始输出，不要写任何开场白。**`;
 }
 
 type CardInfo = { nameZh: string; name: string; isReversed: boolean };

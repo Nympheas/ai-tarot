@@ -104,7 +104,7 @@ export async function POST(req: Request) {
       model: "gemini-2.5-flash",
       systemInstruction: getSystemPrompt(type),
       generationConfig: {
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
         temperature: 0.95,
       },
     });
