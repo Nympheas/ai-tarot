@@ -7,6 +7,7 @@ import { ReadingOutput } from "@/components/tarot/ReadingOutput";
 import { saveReading } from "@/lib/storage";
 import { ReadingLoader } from "@/components/ReadingLoader";
 import { PaywallModal } from "@/components/PaywallModal";
+import { RetryCountdown } from "@/components/RetryCountdown";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Step = "question" | "throw" | "reading";
@@ -159,22 +160,17 @@ export default function IChingPage() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col items-center gap-6">
             {!output && isStreaming && <ReadingLoader />}
             {quotaError && (
-              <div className="w-full rounded-2xl border border-amber-500/20 bg-amber-900/10 px-6 py-5 flex flex-col gap-3">
-                <p className="text-amber-400/90 font-medium">请求频率超限，请稍等</p>
-                <p className="text-stone-400 text-sm leading-relaxed">
-                  Gemini 免费版有每分钟请求限制。
-                  {quotaError.retryAfter
-                    ? `请等约 ${quotaError.retryAfter} 秒后重试，或`
-                    : "请稍等片刻后重试，或"}
-                  前往 Google AI Studio 开启计费以提升配额。
-                </p>
-                <button
-                  onClick={reset}
-                  className="text-stone-500 text-xs hover:text-stone-300 cursor-pointer text-left"
-                >
-                  返回重新起卦 →
-                </button>
-              </div>
+              quotaError.retryAfter
+                ? <RetryCountdown
+                    retryAfter={quotaError.retryAfter}
+                    onRetry={() => { setQuotaError(null); startReading(hexagramName, hexagramNumber); }}
+                    onDismiss={reset}
+                  />
+                : <div className="w-full rounded-2xl border border-amber-500/20 bg-amber-900/10 px-6 py-5 flex flex-col gap-3">
+                    <p className="text-amber-400/90 font-medium">请求失败</p>
+                    <p className="text-stone-400 text-sm">请稍后重试</p>
+                    <button onClick={reset} className="text-stone-500 text-xs hover:text-stone-300 cursor-pointer text-left">返回重新起卦 →</button>
+                  </div>
             )}
             {output && (
               <ReadingOutput
