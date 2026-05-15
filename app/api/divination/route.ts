@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Content, GenerationConfig } from "@google/generative-ai";
+import OpenAI from "openai";
 import { getTarotSystemPrompt, buildTarotUserPrompt } from "@/lib/prompts/tarot";
 import { getIChingSystemPrompt, buildIChingUserPrompt } from "@/lib/prompts/iching";
 import { getMassSystemPrompt, buildMassUserPrompt, MassTheme } from "@/lib/prompts/mass";
@@ -65,23 +65,15 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
   return body.question as string;
 }
 
-// Convert our message format to Gemini's format
-function toGeminiHistory(messages: Message[]): Content[] {
-  return messages.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
-}
-
 export async function POST(req: Request) {
   const body = await req.json();
   const { type, messages = [] }: { type: DivinationType; messages: Message[] } = body;
 
-  // Mock mode: no API key configured
+  // Mock mode
   if (
     process.env.NEXT_PUBLIC_USE_MOCK === "true" ||
-    !process.env.GEMINI_API_KEY ||
-    process.env.GEMINI_API_KEY === "your_gemini_api_key_here"
+    !process.env.ARK_API_KEY ||
+    process.env.ARK_API_KEY === "your_ark_api_key_here"
   ) {
     const mockText = getMockResponse(type);
     const encoder = new TextEncoder();
@@ -99,43 +91,47 @@ export async function POST(req: Request) {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: getSystemPrompt(type),
-      // thinkingConfig is not in SDK 0.24.1 types but IS in the Gemini API.
-      // Disabling thinking (budget=0) prevents it from eating into output tokens.
-      generationConfig: {
-        maxOutputTokens: 16384,
-        temperature: 0.95,
-        thinkingConfig: { thinkingBudget: 0 },
-      } as unknown as GenerationConfig,
+    const client = new OpenAI({
+      apiKey: process.env.ARK_API_KEY!,
+      baseURL: process.env.ARK_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3",
     });
 
-    const userPrompt = buildUserPrompt(type, body);
-    const history = toGeminiHistory(messages);
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessageStream(userPrompt);
+    const systemPrompt = getSystemPrompt(type);
+    const userPrompt   = buildUserPrompt(type, body);
+
+    const oaiMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
+      { role: "system", content: systemPrompt },
+      ...messages.map((m: Message) => ({ role: m.role, content: m.content })),
+      { role: "user", content: userPrompt },
+    ];
+
+    const arkStream = await client.chat.completions.create({
+      model: process.env.ARK_MODEL || "doubao-1-5-pro-32k",
+      messages: oaiMessages,
+      stream: true,
+      max_tokens: 16384,
+      temperature: 0.95,
+    });
 
     const encoder = new TextEncoder();
-    const stream = new ReadableStream({
+    const readable = new ReadableStream({
       async start(controller) {
-        for await (const chunk of result.stream) {
-          const text = chunk.text();
+        for await (const chunk of arkStream) {
+          const text = chunk.choices[0]?.delta?.content ?? "";
           if (text) controller.enqueue(encoder.encode(text));
         }
         controller.close();
       },
     });
 
-    return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    return new Response(readable, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[divination] Gemini error:", message);
+    console.error("[divination] Doubao error:", message);
 
-    if (message.includes("429") || message.includes("quota")) {
-      const retryMatch = message.match(/retry in (\d+(?:\.\d+)?)s/i);
-      const retryAfter = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 60;
+    if (message.includes("429") || message.includes("rate_limit") || message.includes("quota")) {
+      const retryMatch = message.match(/(\d+)\s*s/i);
+      const retryAfter = retryMatch ? parseInt(retryMatch[1]) : 60;
       return new Response(JSON.stringify({ error: "quota_exceeded", retryAfter }), {
         status: 429,
         headers: { "Content-Type": "application/json" },
