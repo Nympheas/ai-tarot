@@ -124,10 +124,10 @@ export async function POST(req: Request) {
     const userPrompt   = buildUserPrompt(type, body);
 
     const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
       systemInstruction: systemPrompt,
       generationConfig: {
-        maxOutputTokens: 8192,
+        maxOutputTokens: 65536,
         temperature: 0.95,
       } as unknown as GenerationConfig,
     });
