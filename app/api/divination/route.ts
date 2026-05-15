@@ -1,4 +1,6 @@
 import { GoogleGenerativeAI, Content, GenerationConfig } from "@google/generative-ai";
+import { auth } from "@clerk/nextjs/server";
+import { getUserCreditStatus, consumeCredit } from "@/lib/credits";
 import { getTarotSystemPrompt, buildTarotUserPrompt } from "@/lib/prompts/tarot";
 import { getIChingSystemPrompt, buildIChingUserPrompt } from "@/lib/prompts/iching";
 import { getMassSystemPrompt, buildMassUserPrompt, MassTheme } from "@/lib/prompts/mass";
@@ -75,6 +77,25 @@ function toGeminiHistory(messages: Message[]): Content[] {
 export async function POST(req: Request) {
   const body = await req.json();
   const { type, messages = [] }: { type: DivinationType; messages: Message[] } = body;
+
+  // Auth + credit check (only for new readings, not follow-up messages)
+  if (messages.length === 0) {
+    const { userId } = await auth();
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "unauthenticated" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const status = await getUserCreditStatus(userId);
+    if (!status.canRead) {
+      return new Response(JSON.stringify({ error: "payment_required" }), {
+        status: 402,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    await consumeCredit(userId);
+  }
 
   // Mock mode
   if (

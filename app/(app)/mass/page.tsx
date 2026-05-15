@@ -7,6 +7,7 @@ import { ReadingLoader } from "@/components/ReadingLoader";
 import { drawCards, ALL_CARDS } from "@/lib/divination/tarot-cards";
 import { saveReading } from "@/lib/storage";
 import { MassTheme, THEME_LABELS, POPULAR_QUESTIONS } from "@/lib/prompts/mass";
+import { PaywallModal } from "@/components/PaywallModal";
 
 type Step = "setup" | "reading";
 type InputMode = "auto" | "manual";
@@ -47,6 +48,7 @@ export default function MassPage() {
   const [manualCards, setManualCards] = useState<GroupCards[]>([
     emptyGroupCards(), emptyGroupCards(), emptyGroupCards(),
   ]);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [groups, setGroups] = useState<GroupState[]>([
     { status: "idle", content: "" },
     { status: "idle", content: "" },
@@ -105,6 +107,7 @@ export default function MassPage() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
+      if (res.status === 402) { updateGroup(index, { status: "idle" }); setShowPaywall(true); return; }
       updateGroup(index, {
         status: "error",
         retryAfter: res.status === 429 ? (data.retryAfter ?? 60) : undefined,
@@ -149,6 +152,8 @@ export default function MassPage() {
   const anyDone = groups.some((g) => g.status === "done");
 
   return (
+    <>
+    <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
     <main className="min-h-screen bg-[#080814] text-white px-4 py-12 pb-28">
       <div className="max-w-2xl mx-auto flex flex-col items-center gap-8">
 
@@ -481,5 +486,6 @@ export default function MassPage() {
         )}
       </div>
     </main>
+    </>
   );
 }

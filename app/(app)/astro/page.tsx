@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ReadingOutput } from "@/components/tarot/ReadingOutput";
 import { ReadingLoader } from "@/components/ReadingLoader";
+import { PaywallModal } from "@/components/PaywallModal";
 import { saveReading } from "@/lib/storage";
 import {
   AstroFocusArea,
@@ -43,6 +44,7 @@ export default function AstroPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [messages, setMessages]   = useState<Message[]>([]);
   const [quotaError, setQuotaError] = useState<{ retryAfter?: number } | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const effectiveCity = birthCity === "其他" ? customCity : birthCity;
   const sunSign = getSunSign(birthMonth, birthDay);
@@ -69,6 +71,7 @@ export default function AstroPage() {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       setIsStreaming(false);
+      if (res.status === 402) { setShowPaywall(true); return; }
       setQuotaError({ retryAfter: res.status === 429 ? (data.retryAfter ?? 60) : undefined });
       return;
     }
@@ -145,6 +148,8 @@ export default function AstroPage() {
   }
 
   return (
+    <>
+    <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
     <main className="min-h-screen bg-[#04040e] text-white px-4 py-12 pb-28">
       <div className="max-w-2xl mx-auto flex flex-col items-center gap-8">
 
@@ -334,5 +339,6 @@ export default function AstroPage() {
         )}
       </div>
     </main>
+    </>
   );
 }

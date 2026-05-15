@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ReadingOutput } from "@/components/tarot/ReadingOutput";
 import { ReadingLoader } from "@/components/ReadingLoader";
+import { PaywallModal } from "@/components/PaywallModal";
 import { saveReading } from "@/lib/storage";
 import {
   ZiweiFocusArea,
@@ -38,6 +39,7 @@ export default function ZiweiPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [messages, setMessages]     = useState<Message[]>([]);
   const [quotaError, setQuotaError] = useState<{ retryAfter?: number } | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const shichen = SHICHEN_LIST[shichenIdx];
 
@@ -66,6 +68,7 @@ export default function ZiweiPage() {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       setIsStreaming(false);
+      if (res.status === 402) { setShowPaywall(true); return; }
       setQuotaError({ retryAfter: res.status === 429 ? (data.retryAfter ?? 60) : undefined });
       return;
     }
@@ -141,6 +144,8 @@ export default function ZiweiPage() {
   }
 
   return (
+    <>
+    <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
     <main className="min-h-screen bg-[#06060f] text-white px-4 py-12 pb-28">
       <div className="max-w-2xl mx-auto flex flex-col items-center gap-8">
 
@@ -315,5 +320,6 @@ export default function ZiweiPage() {
         )}
       </div>
     </main>
+    </>
   );
 }

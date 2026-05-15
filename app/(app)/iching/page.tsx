@@ -6,6 +6,7 @@ import { CoinThrow } from "@/components/iching/CoinThrow";
 import { ReadingOutput } from "@/components/tarot/ReadingOutput";
 import { saveReading } from "@/lib/storage";
 import { ReadingLoader } from "@/components/ReadingLoader";
+import { PaywallModal } from "@/components/PaywallModal";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Step = "question" | "throw" | "reading";
@@ -19,6 +20,7 @@ export default function IChingPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [quotaError, setQuotaError] = useState<{ retryAfter?: number } | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   async function startReading(name: string, number: number) {
     setHexagramName(name);
@@ -36,6 +38,7 @@ export default function IChingPage() {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       setIsStreaming(false);
+      if (res.status === 402) { setShowPaywall(true); setStep("question"); return; }
       setQuotaError({ retryAfter: res.status === 429 ? (data.retryAfter ?? 60) : undefined });
       return;
     }
@@ -102,6 +105,8 @@ export default function IChingPage() {
   }
 
   return (
+    <>
+    <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
     <main className="min-h-screen bg-[#0d0a06] text-white px-4 py-12">
       <div className="max-w-2xl mx-auto flex flex-col items-center gap-10">
         {/* Header */}
@@ -190,5 +195,6 @@ export default function IChingPage() {
         )}
       </div>
     </main>
+    </>
   );
 }

@@ -1,7 +1,14 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const isProtectedRoute = createRouteMatcher(["/history(.*)"]);
+const isProtectedRoute = createRouteMatcher([
+  "/tarot(.*)",
+  "/iching(.*)",
+  "/mass(.*)",
+  "/ziwei(.*)",
+  "/astro(.*)",
+  "/history(.*)",
+]);
 
 const hasClerkKeys =
   process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
@@ -16,7 +23,6 @@ export default hasClerkKeys
   : () => NextResponse.next();
 
 export const config = {
-  // 排除 /api/* 路由，API 不经过 Clerk
   matcher: [
     "/((?!_next|api|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
   ],

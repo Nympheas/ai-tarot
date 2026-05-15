@@ -7,6 +7,7 @@ import { ReadingOutput } from "@/components/tarot/ReadingOutput";
 import { TarotCard } from "@/lib/divination/tarot-cards";
 import { saveReading } from "@/lib/storage";
 import { ReadingLoader } from "@/components/ReadingLoader";
+import { PaywallModal } from "@/components/PaywallModal";
 
 type DrawnCard = TarotCard & { isReversed: boolean; position: string };
 type Message = { role: "user" | "assistant"; content: string };
@@ -21,6 +22,7 @@ export default function TarotPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [quotaError, setQuotaError] = useState<{ retryAfter?: number } | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   async function startReading(cards: DrawnCard[]) {
     setStep("reading");
@@ -38,6 +40,7 @@ export default function TarotPage() {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       setIsStreaming(false);
+      if (res.status === 402) { setShowPaywall(true); setStep("question"); return; }
       setQuotaError({ retryAfter: res.status === 429 ? (data.retryAfter ?? 60) : undefined });
       return;
     }
@@ -113,6 +116,8 @@ export default function TarotPage() {
   }
 
   return (
+    <>
+    <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
     <main className="min-h-screen bg-[#0a0a1a] text-white px-4 py-12">
       <div className="max-w-2xl mx-auto flex flex-col items-center gap-10">
         {/* Header */}
@@ -205,5 +210,6 @@ export default function TarotPage() {
         )}
       </div>
     </main>
+    </>
   );
 }
