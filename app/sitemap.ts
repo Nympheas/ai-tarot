@@ -10,5 +10,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/ziwei`,       lastModified: new Date(), changeFrequency: "monthly",  priority: 0.9 },
     { url: `${BASE_URL}/astro`,       lastModified: new Date(), changeFrequency: "monthly",  priority: 0.9 },
     { url: `${BASE_URL}/mass`,        lastModified: new Date(), changeFrequency: "monthly",  priority: 0.8 },
+    { url: `${BASE_URL}/privacy`,     lastModified: new Date(), changeFrequency: "yearly",   priority: 0.3 },
   ];
 }

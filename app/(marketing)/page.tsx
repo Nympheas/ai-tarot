@@ -74,6 +74,11 @@ export default function LandingPage() {
             为每位用户提供个性化深度解析。首次占卜免费。
           </p>
           <p className="text-slate-700">仅供娱乐与自我探索，不构成任何专业建议</p>
+          <p>
+            <Link href="/privacy" className="text-slate-700 hover:text-slate-500 transition-colors underline underline-offset-2">
+              隐私政策
+            </Link>
+          </p>
         </section>
       </div>
     </main>
