@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI, Content, GenerationConfig } from "@google/generative-ai";
 import { getTarotSystemPrompt, buildTarotUserPrompt } from "@/lib/prompts/tarot";
 import { getIChingSystemPrompt, buildIChingUserPrompt } from "@/lib/prompts/iching";
 import { getMassSystemPrompt, buildMassUserPrompt, MassTheme } from "@/lib/prompts/mass";
@@ -65,6 +65,13 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
   return body.question as string;
 }
 
+function toGeminiHistory(messages: Message[]): Content[] {
+  return messages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   const { type, messages = [] }: { type: DivinationType; messages: Message[] } = body;
@@ -72,8 +79,8 @@ export async function POST(req: Request) {
   // Mock mode
   if (
     process.env.NEXT_PUBLIC_USE_MOCK === "true" ||
-    !process.env.ARK_API_KEY ||
-    process.env.ARK_API_KEY === "your_ark_api_key_here"
+    !process.env.GEMINI_API_KEY ||
+    process.env.GEMINI_API_KEY === "your_gemini_api_key_here"
   ) {
     const mockText = getMockResponse(type);
     const encoder = new TextEncoder();
@@ -91,33 +98,28 @@ export async function POST(req: Request) {
   }
 
   try {
-    const client = new OpenAI({
-      apiKey: process.env.ARK_API_KEY!,
-      baseURL: process.env.ARK_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3",
-    });
-
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const systemPrompt = getSystemPrompt(type);
     const userPrompt   = buildUserPrompt(type, body);
 
-    const oaiMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
-      { role: "system", content: systemPrompt },
-      ...messages.map((m: Message) => ({ role: m.role, content: m.content })),
-      { role: "user", content: userPrompt },
-    ];
-
-    const arkStream = await client.chat.completions.create({
-      model: process.env.ARK_MODEL || "doubao-1-5-pro-32k",
-      messages: oaiMessages,
-      stream: true,
-      max_tokens: 16384,
-      temperature: 0.95,
+    const model = genAI.getGenerativeModel({
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash-preview-04-17",
+      systemInstruction: systemPrompt,
+      generationConfig: {
+        maxOutputTokens: 16384,
+        temperature: 0.95,
+        thinkingConfig: { thinkingBudget: 0 },
+      } as unknown as GenerationConfig,
     });
+
+    const chat = model.startChat({ history: toGeminiHistory(messages) });
+    const result = await chat.sendMessageStream(userPrompt);
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const chunk of arkStream) {
-          const text = chunk.choices[0]?.delta?.content ?? "";
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
           if (text) controller.enqueue(encoder.encode(text));
         }
         controller.close();
@@ -127,7 +129,7 @@ export async function POST(req: Request) {
     return new Response(readable, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[divination] Doubao error:", message);
+    console.error("[divination] Gemini error:", message);
 
     if (message.includes("429") || message.includes("rate_limit") || message.includes("quota")) {
       const retryMatch = message.match(/(\d+)\s*s/i);

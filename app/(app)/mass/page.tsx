@@ -402,11 +402,11 @@ export default function MassPage() {
                     <div className="px-5 pb-5 border-t border-white/5 pt-4 flex flex-col gap-2">
                       {g.retryAfter ? (
                         <>
-                          <p className="text-amber-400/90 text-sm font-medium">API 调用额度不足</p>
+                          <p className="text-amber-400/90 text-sm font-medium">今日免费额度已用完</p>
                           <p className="text-slate-500 text-xs leading-relaxed">
-                            请等约 {g.retryAfter} 秒后重试。如持续出现，请前往
-                            <span className="text-slate-400"> 火山方舟控制台</span>
-                            检查账户余额或充值。
+                            Gemini 免费版每天限 20 次请求。请等约 {g.retryAfter} 秒后重试，或前往
+                            <span className="text-slate-400"> Google AI Studio → 开启计费</span>，
+                            配额会提升到每天 1500 次。
                           </p>
                         </>
                       ) : (
