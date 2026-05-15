@@ -8,6 +8,7 @@ import { drawCards, ALL_CARDS } from "@/lib/divination/tarot-cards";
 import { saveReading } from "@/lib/storage";
 import { MassTheme, THEME_LABELS, POPULAR_QUESTIONS } from "@/lib/prompts/mass";
 import { PaywallModal } from "@/components/PaywallModal";
+import { RetryCountdown } from "@/components/RetryCountdown";
 
 type Step = "setup" | "reading";
 type InputMode = "auto" | "manual";
@@ -326,7 +327,7 @@ export default function MassPage() {
                       </button>
                     )}
                     {g.status === "error" && (
-                      <span className="text-amber-500/70 text-xs">额度不足</span>
+                      <span className="text-amber-500/70 text-xs">生成失败</span>
                     )}
                   </div>
 
@@ -404,25 +405,24 @@ export default function MassPage() {
 
                   {/* Error state */}
                   {g.status === "error" && (
-                    <div className="px-5 pb-5 border-t border-white/5 pt-4 flex flex-col gap-2">
+                    <div className="px-5 pb-5 border-t border-white/5 pt-4">
                       {g.retryAfter ? (
-                        <>
-                          <p className="text-amber-400/90 text-sm font-medium">请求频率超限，请稍等</p>
-                          <p className="text-slate-500 text-xs leading-relaxed">
-                            Gemini 免费版有每分钟请求限制。请等约 {g.retryAfter} 秒后重试，或前往
-                            <span className="text-slate-400"> Google AI Studio → 开启计费</span>
-                            以提升配额。
-                          </p>
-                        </>
+                        <RetryCountdown
+                          retryAfter={g.retryAfter}
+                          onRetry={() => { updateGroup(i, { status: "idle", retryAfter: undefined }); generateGroup(i); }}
+                          onDismiss={() => updateGroup(i, { status: "idle", retryAfter: undefined })}
+                        />
                       ) : (
-                        <p className="text-red-400/80 text-sm">生成失败，请稍后重试</p>
+                        <div className="flex flex-col gap-2">
+                          <p className="text-red-400/80 text-sm">生成失败，请稍后重试</p>
+                          <button
+                            onClick={() => updateGroup(i, { status: "idle", retryAfter: undefined })}
+                            className="text-slate-500 text-xs hover:text-slate-300 cursor-pointer text-left"
+                          >
+                            返回重试 →
+                          </button>
+                        </div>
                       )}
-                      <button
-                        onClick={() => updateGroup(i, { status: "idle", retryAfter: undefined })}
-                        className="text-slate-500 text-xs hover:text-slate-300 cursor-pointer mt-1 text-left"
-                      >
-                        返回重试 →
-                      </button>
                     </div>
                   )}
 
