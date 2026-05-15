@@ -170,13 +170,13 @@ export default function TarotPage() {
             {!output && isStreaming && <ReadingLoader />}
             {quotaError && (
               <div className="w-full rounded-2xl border border-amber-500/20 bg-amber-900/10 px-6 py-5 flex flex-col gap-3">
-                <p className="text-amber-400/90 font-medium">今日免费额度已用完</p>
+                <p className="text-amber-400/90 font-medium">请求频率超限，请稍等</p>
                 <p className="text-slate-400 text-sm leading-relaxed">
-                  Gemini 免费版每天限 20 次请求。
+                  Gemini 免费版有每分钟请求限制。
                   {quotaError.retryAfter
                     ? `请等约 ${quotaError.retryAfter} 秒后重试，或`
-                    : "请"}
-                  前往 Google AI Studio 开启计费，配额会提升到每天 1500 次。
+                    : "请稍等片刻后重试，或"}
+                  前往 Google AI Studio 开启计费以提升配额。
                 </p>
                 <button
                   onClick={reset}
