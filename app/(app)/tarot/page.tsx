@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { CardDraw } from "@/components/tarot/CardDraw";
+import { CardPicker, SelectedCard } from "@/components/tarot/CardPicker";
 import { ReadingOutput } from "@/components/tarot/ReadingOutput";
 import { TarotCard } from "@/lib/divination/tarot-cards";
 import { saveReading } from "@/lib/storage";
@@ -12,10 +13,11 @@ import { RetryCountdown } from "@/components/RetryCountdown";
 
 type DrawnCard = TarotCard & { isReversed: boolean; position: string };
 type Message = { role: "user" | "assistant"; content: string };
-
+type Mode = "auto" | "manual";
 type Step = "question" | "draw" | "reading";
 
 export default function TarotPage() {
+  const [mode, setMode] = useState<Mode>("auto");
   const [step, setStep] = useState<Step>("question");
   const [question, setQuestion] = useState("");
   const [drawnCards, setDrawnCards] = useState<DrawnCard[]>([]);
@@ -107,6 +109,11 @@ export default function TarotPage() {
     startReading(cards);
   }
 
+  function handleManualConfirm(cards: SelectedCard[]) {
+    setDrawnCards(cards);
+    startReading(cards);
+  }
+
   function reset() {
     setStep("question");
     setQuestion("");
@@ -116,11 +123,19 @@ export default function TarotPage() {
     setQuotaError(null);
   }
 
+  function switchMode(m: Mode) {
+    setMode(m);
+    reset();
+  }
+
+  const spreadLabel = drawnCards.length === 5 ? "五牌阵" : "三牌阵";
+
   return (
     <>
     <PaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} />
     <main className="min-h-screen bg-[#0a0a1a] text-white px-4 py-12">
-      <div className="max-w-2xl mx-auto flex flex-col items-center gap-10">
+      <div className="max-w-2xl mx-auto flex flex-col items-center gap-8">
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -128,8 +143,36 @@ export default function TarotPage() {
           className="text-center"
         >
           <h1 className="text-3xl font-light tracking-widest text-purple-200">塔罗解读</h1>
-          <p className="text-slate-400 mt-2 text-sm">三牌阵 · 过去 · 现在 · 未来</p>
+          <p className="text-slate-400 mt-2 text-sm">
+            {step === "reading" && drawnCards.length > 0
+              ? `${spreadLabel} · ${drawnCards.map((c) => c.nameZh).join(" · ")}`
+              : mode === "auto"
+              ? "三牌阵 · 过去 · 现在 · 未来"
+              : "手动选牌 · 3 或 5 张"}
+          </p>
         </motion.div>
+
+        {/* Mode toggle — only show before reading starts */}
+        {step !== "reading" && (
+          <div className="flex gap-2 bg-white/5 rounded-full p-1">
+            <button
+              onClick={() => switchMode("auto")}
+              className={`px-5 py-2 rounded-full text-sm transition-colors ${
+                mode === "auto" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              AI 自动抽牌
+            </button>
+            <button
+              onClick={() => switchMode("manual")}
+              className={`px-5 py-2 rounded-full text-sm transition-colors ${
+                mode === "manual" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              手动选牌
+            </button>
+          </div>
+        )}
 
         {/* Step 1: Question */}
         {step === "question" && (
@@ -155,18 +198,27 @@ export default function TarotPage() {
               onClick={() => setStep("draw")}
               className="w-full py-4 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium disabled:opacity-40 shadow-lg shadow-purple-500/20 cursor-pointer"
             >
-              准备好了，开始抽牌
+              {mode === "auto" ? "准备好了，开始抽牌" : "准备好了，选择牌"}
             </motion.button>
           </motion.div>
         )}
 
-        {/* Step 2: Draw */}
+        {/* Step 2: Draw / Pick */}
         {step === "draw" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col items-center gap-6">
-            <p className="text-slate-400 text-sm text-center">
-              静心片刻，专注于你的问题
-            </p>
-            <CardDraw onCardsDrawn={handleCardsDrawn} />
+            {mode === "auto" ? (
+              <>
+                <p className="text-slate-400 text-sm text-center">静心片刻，专注于你的问题</p>
+                <CardDraw onCardsDrawn={handleCardsDrawn} />
+              </>
+            ) : (
+              <>
+                <p className="text-slate-400 text-sm text-center">
+                  选择你已经抽到的牌，并设置正位或逆位
+                </p>
+                <CardPicker onConfirm={handleManualConfirm} />
+              </>
+            )}
           </motion.div>
         )}
 
