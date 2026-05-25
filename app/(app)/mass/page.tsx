@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { ReadingLoader } from "@/components/ReadingLoader";
 import { drawCards, ALL_CARDS } from "@/lib/divination/tarot-cards";
 import { saveReading } from "@/lib/storage";
-import { MassTheme, THEME_LABELS, POPULAR_QUESTIONS } from "@/lib/prompts/mass";
+import { MassTheme, MassPersonality, THEME_LABELS, POPULAR_QUESTIONS } from "@/lib/prompts/mass";
 import { PaywallModal } from "@/components/PaywallModal";
 import { RetryCountdown } from "@/components/RetryCountdown";
 
@@ -46,6 +46,7 @@ export default function MassPage() {
   const [theme, setTheme]     = useState<MassTheme>("love");
   const [question, setQuestion] = useState("");
   const [inputMode, setInputMode] = useState<InputMode>("auto");
+  const [personality, setPersonality] = useState<MassPersonality>("default");
   const [manualCards, setManualCards] = useState<GroupCards[]>([
     emptyGroupCards(), emptyGroupCards(), emptyGroupCards(),
   ]);
@@ -102,6 +103,7 @@ export default function MassPage() {
         groupSymbol: group.symbol,
         verificationCards,
         readingCards,
+        personality,
         messages: [],
       }),
     });
@@ -245,6 +247,38 @@ export default function MassPage() {
               )}
             </div>
 
+            {/* Personality */}
+            <div className="flex flex-col gap-3">
+              <p className="text-slate-400 text-sm">解读人格</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPersonality("default")}
+                  className={`flex-1 flex flex-col items-start px-4 py-3 rounded-xl border transition-all cursor-pointer text-left ${
+                    personality === "default"
+                      ? "border-pink-400/60 bg-pink-900/20"
+                      : "border-slate-800 hover:border-slate-700"
+                  }`}
+                >
+                  <span className="text-sm font-medium text-white">默认</span>
+                  <span className="text-xs text-slate-500 mt-0.5">温暖治愈·灵性博主风格</span>
+                </button>
+                <button
+                  onClick={() => setPersonality("intp")}
+                  className={`flex-1 flex flex-col items-start px-4 py-3 rounded-xl border transition-all cursor-pointer text-left ${
+                    personality === "intp"
+                      ? "border-slate-400/60 bg-slate-800/60"
+                      : "border-slate-800 hover:border-slate-700"
+                  }`}
+                >
+                  <span className="text-sm font-medium text-white flex items-center gap-2">
+                    INTP
+                    <span className="text-xs font-normal text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">实验性</span>
+                  </span>
+                  <span className="text-xs text-slate-500 mt-0.5">疲惫·观察·拆本质</span>
+                </button>
+              </div>
+            </div>
+
             <motion.button
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               disabled={!question.trim()}
@@ -269,6 +303,9 @@ export default function MassPage() {
                 <span className="text-pink-300/70 text-xs truncate max-w-[140px]">「{question}」</span>
                 {inputMode === "manual" && (
                   <span className="text-slate-600 text-xs">· 手动输牌</span>
+                )}
+                {personality === "intp" && (
+                  <span className="text-slate-500 text-xs px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">INTP</span>
                 )}
               </div>
               <button onClick={reset} className="text-slate-600 text-xs hover:text-slate-400 cursor-pointer shrink-0">
