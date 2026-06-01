@@ -9,20 +9,14 @@ type Props = {
 };
 
 const PACKAGES = [
-  { quantity: 5,  price: "¥9.90",  label: "5 次占卜",  popular: false },
-  { quantity: 20, price: "¥29.90", label: "20 次占卜", popular: true  },
-];
-
-const PAY_TYPES = [
-  { type: "wechat", label: "微信支付", icon: "💚" },
-  { type: "alipay", label: "支付宝",   icon: "💙" },
+  { quantity: 5,  price: "$1.99", label: "5 次占卜",  popular: false },
+  { quantity: 20, price: "$5.99", label: "20 次占卜", popular: true  },
 ];
 
 export function PaywallModal({ open, onClose }: Props) {
-  const [selected, setSelected]   = useState(20);
-  const [payType, setPayType]     = useState("wechat");
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState("");
+  const [selected, setSelected] = useState(20);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
 
   async function handleBuy() {
     setLoading(true);
@@ -31,7 +25,7 @@ export function PaywallModal({ open, onClose }: Props) {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity: selected, type: payType }),
+        body: JSON.stringify({ quantity: selected }),
       });
       const data = await res.json();
       if (data.url) {
@@ -69,7 +63,6 @@ export function PaywallModal({ open, onClose }: Props) {
               <p className="text-slate-400 text-sm mt-1">购买后继续探索</p>
             </div>
 
-            {/* Package selection */}
             <div className="flex flex-col gap-2">
               {PACKAGES.map((pkg) => (
                 <button
@@ -94,23 +87,7 @@ export function PaywallModal({ open, onClose }: Props) {
               ))}
             </div>
 
-            {/* Pay type */}
-            <div className="flex gap-2">
-              {PAY_TYPES.map((p) => (
-                <button
-                  key={p.type}
-                  onClick={() => setPayType(p.type)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm transition-all cursor-pointer ${
-                    payType === p.type
-                      ? "border-violet-500/60 bg-violet-500/10 text-white"
-                      : "border-white/10 text-slate-400 hover:border-white/20"
-                  }`}
-                >
-                  <span>{p.icon}</span>
-                  <span>{p.label}</span>
-                </button>
-              ))}
-            </div>
+            <p className="text-slate-500 text-xs text-center">支持信用卡 · Visa / Mastercard</p>
 
             {error && <p className="text-red-400 text-xs text-center">{error}</p>}
 

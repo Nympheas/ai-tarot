@@ -1,47 +1,33 @@
-import { verifyMd5 } from "@/lib/xunhupay";
+import { createHmac } from "crypto";
 import { fulfillOrder } from "@/lib/orders";
 import { addCredits } from "@/lib/credits";
 
 export async function POST(req: Request) {
-  return handle(req);
-}
+  const body = await req.text();
+  const sig  = req.headers.get("x-signature") ?? "";
 
-export async function GET(req: Request) {
-  return handle(req);
-}
+  const expected = createHmac("sha256", process.env.LEMONSQUEEZY_WEBHOOK_SECRET!)
+    .update(body)
+    .digest("hex");
 
-async function handle(req: Request) {
-  // 虎皮椒可能用 GET query string 或 POST form/json 发回调
-  let params: Record<string, string> = {};
-
-  const url = new URL(req.url);
-  url.searchParams.forEach((v, k) => { params[k] = v; });
-
-  if (req.method === "POST") {
-    try {
-      const ct = req.headers.get("content-type") ?? "";
-      if (ct.includes("application/json")) {
-        Object.assign(params, await req.json());
-      } else {
-        const text = await req.text();
-        new URLSearchParams(text).forEach((v, k) => { params[k] = v; });
-      }
-    } catch { /* ignore */ }
-  }
-
-  const appSecret = process.env.XUNHUPAY_APP_SECRET!;
-  if (!verifyMd5(params, appSecret)) {
+  if (expected !== sig) {
     return new Response("invalid signature", { status: 400 });
   }
 
-  if (params.status !== "OD") {
-    return new Response("success");
+  const eventName = req.headers.get("x-event-name");
+  const event     = JSON.parse(body);
+
+  if (eventName === "order_created" && event.data?.attributes?.status === "paid") {
+    const custom = (event.meta?.custom_data ?? {}) as Record<string, string>;
+    const { userId, orderId, quantity } = custom;
+
+    if (orderId) {
+      const result = await fulfillOrder(orderId);
+      if (result) await addCredits(result.userId, result.quantity);
+    } else if (userId && quantity) {
+      await addCredits(userId, parseInt(quantity));
+    }
   }
 
-  const result = await fulfillOrder(params.out_trade_no);
-  if (result) {
-    await addCredits(result.userId, result.quantity);
-  }
-
-  return new Response("success");
+  return new Response("ok");
 }
