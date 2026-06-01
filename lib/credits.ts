@@ -1,5 +1,17 @@
 import { dbQuery, isDbConfigured } from "./db";
 
+const INIT_SQL = `
+  CREATE TABLE IF NOT EXISTS user_credits (
+    user_id TEXT PRIMARY KEY,
+    free_used BOOLEAN DEFAULT FALSE,
+    credits INTEGER DEFAULT 0
+  )
+`;
+
+async function ensureTable() {
+  await dbQuery(INIT_SQL);
+}
+
 export type CreditStatus = {
   freeUsed: boolean;
   credits: number;
@@ -9,6 +21,7 @@ export type CreditStatus = {
 export async function getUserCreditStatus(userId: string): Promise<CreditStatus> {
   if (!isDbConfigured()) return { freeUsed: false, credits: 0, canRead: true };
 
+  await ensureTable();
   const result = await dbQuery(
     "SELECT free_used, credits FROM user_credits WHERE user_id = $1",
     [userId]
