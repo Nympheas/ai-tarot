@@ -18,7 +18,10 @@ export type CreditStatus = {
   canRead: boolean;
 };
 
+const ADMIN_IDS = (process.env.ADMIN_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
 export async function getUserCreditStatus(userId: string): Promise<CreditStatus> {
+  if (ADMIN_IDS.includes(userId)) return { freeUsed: false, credits: 999, canRead: true };
   if (!isDbConfigured()) return { freeUsed: false, credits: 0, canRead: true };
 
   await ensureTable();
@@ -34,6 +37,7 @@ export async function getUserCreditStatus(userId: string): Promise<CreditStatus>
 }
 
 export async function consumeCredit(userId: string): Promise<boolean> {
+  if (ADMIN_IDS.includes(userId)) return true;
   if (!isDbConfigured()) return true;
 
   const status = await getUserCreditStatus(userId);
