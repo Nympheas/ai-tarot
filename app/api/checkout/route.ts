@@ -35,8 +35,8 @@ export async function POST(req: Request) {
           checkout_data: {
             custom: { userId, orderId, quantity: String(quantity) },
           },
-          checkout_options: {
-            success_url: `${appUrl}/payment/success`,
+          product_options: {
+            redirect_url: `${appUrl}/payment/success`,
           },
         },
         relationships: {
