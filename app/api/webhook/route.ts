@@ -1,31 +1,47 @@
-import Stripe from "stripe";
+import { verifyMd5 } from "@/lib/xunhupay";
+import { fulfillOrder } from "@/lib/orders";
 import { addCredits } from "@/lib/credits";
 
-function getStripe() {
-  return new Stripe(process.env.STRIPE_SECRET_KEY!);
+export async function POST(req: Request) {
+  return handle(req);
 }
 
-export async function POST(req: Request) {
-  const body = await req.text();
-  const sig = req.headers.get("stripe-signature");
+export async function GET(req: Request) {
+  return handle(req);
+}
 
-  if (!sig) return new Response("Missing signature", { status: 400 });
+async function handle(req: Request) {
+  // 虎皮椒可能用 GET query string 或 POST form/json 发回调
+  let params: Record<string, string> = {};
 
-  const stripe = getStripe();
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
-  } catch {
-    return new Response("Webhook signature verification failed", { status: 400 });
+  const url = new URL(req.url);
+  url.searchParams.forEach((v, k) => { params[k] = v; });
+
+  if (req.method === "POST") {
+    try {
+      const ct = req.headers.get("content-type") ?? "";
+      if (ct.includes("application/json")) {
+        Object.assign(params, await req.json());
+      } else {
+        const text = await req.text();
+        new URLSearchParams(text).forEach((v, k) => { params[k] = v; });
+      }
+    } catch { /* ignore */ }
   }
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const { userId, quantity } = session.metadata ?? {};
-    if (userId && quantity) {
-      await addCredits(userId, parseInt(quantity));
-    }
+  const appSecret = process.env.XUNHUPAY_APP_SECRET!;
+  if (!verifyMd5(params, appSecret)) {
+    return new Response("invalid signature", { status: 400 });
   }
 
-  return new Response("OK");
+  if (params.status !== "OD") {
+    return new Response("success");
+  }
+
+  const result = await fulfillOrder(params.out_trade_no);
+  if (result) {
+    await addCredits(result.userId, result.quantity);
+  }
+
+  return new Response("success");
 }

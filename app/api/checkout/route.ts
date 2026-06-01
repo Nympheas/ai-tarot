@@ -1,46 +1,50 @@
-import Stripe from "stripe";
 import { auth } from "@clerk/nextjs/server";
-
-function getStripe() {
-  return new Stripe(process.env.STRIPE_SECRET_KEY!);
-}
+import { createMd5 } from "@/lib/xunhupay";
+import { createOrder } from "@/lib/orders";
 
 const PACKAGES = [
-  { quantity: 1, amount: 199, label: "1 次占卜" },
-  { quantity: 5, amount: 699, label: "5 次占卜" },
+  { quantity: 5,  amount: "9.90",  label: "灵镜AI · 5次占卜" },
+  { quantity: 20, amount: "29.90", label: "灵镜AI · 20次占卜" },
 ];
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  if (!userId) {
-    return Response.json({ error: "未登录" }, { status: 401 });
-  }
+  if (!userId) return Response.json({ error: "未登录" }, { status: 401 });
 
-  const { quantity } = await req.json();
+  const { quantity, type = "wechat" } = await req.json();
   const pkg = PACKAGES.find((p) => p.quantity === quantity) ?? PACKAGES[0];
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
-  const stripe = getStripe();
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          product_data: { name: "灵镜AI 占卜次数", description: pkg.label },
-          unit_amount: pkg.amount,
-        },
-        quantity: 1,
-      },
-    ],
-    mode: "payment",
-    success_url: `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/tarot`,
-    metadata: { userId, quantity: String(pkg.quantity) },
+  const appid      = process.env.XUNHUPAY_APPID!;
+  const appSecret  = process.env.XUNHUPAY_APP_SECRET!;
+  const outTradeNo = await createOrder(userId, pkg.quantity);
+  const nonceStr   = Math.random().toString(36).slice(2, 18);
+
+  const params: Record<string, string> = {
+    appid,
+    type,
+    out_trade_no: outTradeNo,
+    notify_url:   `${appUrl}/api/webhook`,
+    return_url:   `${appUrl}/payment/success`,
+    name:         pkg.label,
+    money:        pkg.amount,
+    nonce_str:    nonceStr,
+  };
+
+  params.hash = createMd5(params, appSecret);
+
+  const res = await fetch("https://api.xunhupay.com/payment/do.html", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
   });
 
-  return Response.json({ url: session.url });
+  const data = await res.json();
+  if (data.errcode !== 0) {
+    return Response.json({ error: data.errmsg ?? "创建订单失败" }, { status: 500 });
+  }
+
+  return Response.json({ url: data.url });
 }
