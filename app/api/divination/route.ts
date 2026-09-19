@@ -1,3 +1,4 @@
+import { withTwentyCardSpread, buildTwentyCardUserPrompt, isTwentyCardReading, getTwentyCardMock } from "@/lib/prompts/mass-twenty-card";
 import { withFifteenCardSpread, buildFifteenCardUserPrompt, isFifteenCardReading, getFifteenCardMock } from "@/lib/prompts/mass-fifteen-card";
 import { withThirteenCardSpread, buildThirteenCardUserPrompt, isThirteenCardReading, getThirteenCardMock } from "@/lib/prompts/mass-thirteen-card";
 import { withAddedCardSpread, buildAddedCardUserPrompt, isAddedReading, getAddedCardMock } from "@/lib/prompts/mass-added-card";
@@ -20,6 +21,7 @@ function getSystemPrompt(type: DivinationType, body: Record<string, unknown>): s
   if (type === "mass") {
     const personality = (body.personality as MassPersonality) ?? "default";
     const prompt = personality === "intp" ? getMassINTPSystemPrompt() : getMassSystemPrompt();
+    if (body.spread === "twenty-card") return withTwentyCardSpread(prompt, personality);
     if (body.spread === "fifteen-card") return withFifteenCardSpread(prompt, personality);
     if (body.spread === "thirteen-card") return withThirteenCardSpread(prompt, personality);
     if (body.spread === "added-card") return withAddedCardSpread(prompt, personality);
@@ -46,6 +48,9 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
     );
   }
   if (type === "mass") {
+    if (body.spread === "twenty-card" && isTwentyCardReading(body.readingCards)) {
+      return buildTwentyCardUserPrompt(body.theme as MassTheme, body.groupNumber as number, body.groupSymbol as string, body.question as string, body.readingCards);
+    }
     if (body.spread === "fifteen-card" && isFifteenCardReading(body.readingCards)) {
       return buildFifteenCardUserPrompt(body.theme as MassTheme, body.groupNumber as number, body.groupSymbol as string, body.question as string, body.readingCards);
     }
@@ -132,6 +137,11 @@ export async function POST(req: Request) {
     return Response.json({ error: "十三张牌目前生活解读需要一个问题和十三张不重复的牌" }, { status: 400 });
   }
 
+  if (type === "mass" && body.spread === "twenty-card" &&
+      (!isTwentyCardReading(body.readingCards) || typeof body.question !== "string" || !body.question.trim())) {
+    return Response.json({ error: "二十张牌关系解读需要一个问题和二十张不重复的牌" }, { status: 400 });
+  }
+
   if (type === "mass" && body.spread === "fifteen-card" &&
       (!isFifteenCardReading(body.readingCards) || typeof body.question !== "string" || !body.question.trim())) {
     return Response.json({ error: "十五张牌问题解读需要一个问题和十五张不重复的牌" }, { status: 400 });
@@ -162,7 +172,9 @@ export async function POST(req: Request) {
     !process.env.GEMINI_API_KEY ||
     process.env.GEMINI_API_KEY === "your_gemini_api_key_here"
   ) {
-    const mockText = type === "mass" && body.spread === "fifteen-card"
+    const mockText = type === "mass" && body.spread === "twenty-card"
+      ? getTwentyCardMock(body.readingCards)
+      : type === "mass" && body.spread === "fifteen-card"
       ? getFifteenCardMock(body.readingCards)
       : type === "mass" && body.spread === "thirteen-card"
       ? getThirteenCardMock(body.readingCards)

@@ -314,3 +314,67 @@ test('ten fifteen-card cases and cross layout retain source group roles and exce
   assert.match(FIFTEEN_CARD_CASES[5].lesson, /同一人相隔约一个月/);
   assert.match(FIFTEEN_CARD_CASES[7].clarifiers, /结果组3号.*4号.*5号/);
 });
+
+const twentyCards = loadTs('lib/divination/tarot-cards.ts').ALL_CARDS.slice(0, 20).map((c, i) => ({ name: c.name, nameZh: c.nameZh, isReversed: [5, 19].includes(i) }));
+for (const personality of ['default', 'intp']) {
+  test(`twenty-card ${personality}: keeps persona and preserves all four groups in draw order`, async () => inMode(false, async () => {
+    const { post, seen } = harness();
+    const prompts = loadTs('lib/prompts/mass.ts');
+    const spread = loadTs('lib/prompts/mass-twenty-card.ts');
+    const response = await post({ ...payload, personality, spread: 'twenty-card', readingCards: twentyCards });
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), 'test reading');
+    assert.equal(seen.credits, 1);
+    const base = personality === 'intp' ? prompts.getMassINTPSystemPrompt() : prompts.getMassSystemPrompt();
+    assert.ok(seen.system.startsWith(base + '\n'));
+    assert.match(seen.system, /案例5：期待平等的女性友谊/);
+    assert.match(seen.system, /全局第1、6、11张/);
+    assert.match(seen.system, /头脑2号→忠告2号→结果2号/);
+    assert.match(seen.system, /本次固定20张/);
+    assert.match(seen.system, /第四组独立于前三组/);
+    assert.match(seen.system, /不能把关系人牌接成提问者的第四阶段/);
+    for (let i = 0; i < 20; i++) assert.ok(seen.user.includes(`第${i + 1}张 · ${spread.TWENTY_POSITIONS[i]}：${twentyCards[i].nameZh}`));
+    assert.match(seen.user, /第6张 · 忠告 · 1号核心主题：教皇.*逆位/);
+    assert.match(seen.user, /第20张 · 关系人 · 5号发展：太阳.*逆位/);
+    assert.match(seen.user, /观众第2组/);
+    assert.doesNotMatch(seen.user, /验证牌/);
+  }));
+}
+test('twenty-card malformed and duplicate cards reject before billing', async () => {
+  const { post, seen } = harness();
+  for (const readingCards of [null, [], twentyCards.slice(0, 19), [...twentyCards, cards[0]], [null, ...twentyCards.slice(1)], [twentyCards[1], ...twentyCards.slice(1)], [{ ...twentyCards[0], name: ' ' }, ...twentyCards.slice(1)], [{ ...twentyCards[0], isReversed: 'false' }, ...twentyCards.slice(1)]]) {
+    assert.equal((await post({ ...payload, spread: 'twenty-card', readingCards })).status, 400);
+  }
+  assert.equal((await post({ ...payload, spread: 'twenty-card', readingCards: twentyCards, question: ' ' })).status, 400);
+  assert.equal(seen.credits, 0);
+});
+test('twenty-card mock uses actual cards in four groups of five', async () => inMode(true, async () => {
+  const { post } = harness();
+  const response = await post({ ...payload, spread: 'twenty-card', readingCards: twentyCards });
+  assert.equal(response.status, 200);
+  const output = await response.text();
+  assert.match(output, /### 头脑组/);
+  assert.match(output, /### 忠告组/);
+  assert.match(output, /### 结果组/);
+  assert.equal((output.match(/核心主题/g) ?? []).length, 4);
+  assert.equal((output.match(/号基础/g) ?? []).length, 4);
+  assert.deepEqual([...output.matchAll(/第(\d+)张/g)].map(m => Number(m[1])), Array.from({ length: 20 }, (_, i) => i + 1));
+  assert.match(output, /第20张 · 5号发展：太阳（逆位）/);
+}));
+test('five twenty-card cases retain four independent groups, clarifiers and book cross layout', () => {
+  const { TWENTY_CARD_CASES, TWENTY_POSITIONS, TWENTY_LAYOUT } = loadTs('lib/prompts/mass-twenty-card.ts');
+  assert.equal(TWENTY_POSITIONS.length, 20);
+  assert.deepEqual(TWENTY_LAYOUT, [{ row: 2, col: 2 }, { row: 2, col: 1 }, { row: 2, col: 3 }, { row: 3, col: 2 }, { row: 1, col: 2 }]);
+  assert.equal(TWENTY_CARD_CASES.length, 5);
+  for (const c of TWENTY_CARD_CASES) {
+    assert.equal(c.groups.length, 4, c.title);
+    for (const g of c.groups) assert.equal(g.length, 5, c.title);
+    assert.equal(new Set(c.groups.flat()).size, 20, c.title);
+  }
+  assert.deepEqual(TWENTY_CARD_CASES[0].groups.map(g => g[0]), ['控制的力量（金币四）', '权杖骑士', '主权（权杖二）', '月亮']);
+  assert.match(TWENTY_CARD_CASES[1].lesson, /第四组是同事群体/);
+  assert.match(TWENTY_CARD_CASES[2].clarifiers, /关系人组5号永恒加月亮/);
+  assert.match(TWENTY_CARD_CASES[3].clarifiers, /结果组2号毁灭加权杖公主/);
+  assert.match(TWENTY_CARD_CASES[4].clarifiers, /关系人组4号永恒加失败/);
+  assert.match(TWENTY_CARD_CASES[4].lesson, /退出可能只是暂时/);
+});
