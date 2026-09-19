@@ -255,3 +255,62 @@ test('fifteen thirteen-card book cases retain numbered positions and supplementa
   assert.match(THIRTEEN_CARD_CASES[14].cards[5], /宝剑公主／科学/);
   assert.match(THIRTEEN_CARD_CASES[14].clarifiers, /不新增第14个位置/);
 });
+
+const fifteenCards = loadTs('lib/divination/tarot-cards.ts').ALL_CARDS.slice(0, 15).map((c, i) => ({ name: c.name, nameZh: c.nameZh, isReversed: [5, 14].includes(i) }));
+for (const personality of ['default', 'intp']) {
+  test(`fifteen-card ${personality}: keeps persona and preserves all three groups in draw order`, async () => inMode(false, async () => {
+    const { post, seen } = harness();
+    const prompts = loadTs('lib/prompts/mass.ts');
+    const spread = loadTs('lib/prompts/mass-fifteen-card.ts');
+    const response = await post({ ...payload, personality, spread: 'fifteen-card', readingCards: fifteenCards });
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), 'test reading');
+    assert.equal(seen.credits, 1);
+    const base = personality === 'intp' ? prompts.getMassINTPSystemPrompt() : prompts.getMassSystemPrompt();
+    assert.ok(seen.system.startsWith(base + '\n'));
+    assert.match(seen.system, /案例10：结束生意后工作的方向/);
+    assert.match(seen.system, /全局第1、6、11张/);
+    assert.match(seen.system, /头脑2号→忠告2号→结果2号/);
+    assert.match(seen.system, /本次固定15张/);
+    for (let i = 0; i < 15; i++) assert.ok(seen.user.includes(`第${i + 1}张 · ${spread.FIFTEEN_POSITIONS[i]}：${fifteenCards[i].nameZh}`));
+    assert.match(seen.user, /第6张 · 忠告 · 1号核心主题：教皇.*逆位/);
+    assert.match(seen.user, /第15张 · 结果 · 5号发展：节制.*逆位/);
+    assert.match(seen.user, /观众第2组/);
+    assert.doesNotMatch(seen.user, /验证牌/);
+  }));
+}
+test('fifteen-card malformed and duplicate cards reject before billing', async () => {
+  const { post, seen } = harness();
+  for (const readingCards of [null, [], fifteenCards.slice(0, 14), [...fifteenCards, cards[0]], [null, ...fifteenCards.slice(1)], [fifteenCards[1], ...fifteenCards.slice(1)], [{ ...fifteenCards[0], name: ' ' }, ...fifteenCards.slice(1)], [{ ...fifteenCards[0], isReversed: 'false' }, ...fifteenCards.slice(1)]]) {
+    assert.equal((await post({ ...payload, spread: 'fifteen-card', readingCards })).status, 400);
+  }
+  assert.equal((await post({ ...payload, spread: 'fifteen-card', readingCards: fifteenCards, question: ' ' })).status, 400);
+  assert.equal(seen.credits, 0);
+});
+test('fifteen-card mock uses actual cards in three groups of five', async () => inMode(true, async () => {
+  const { post } = harness();
+  const response = await post({ ...payload, spread: 'fifteen-card', readingCards: fifteenCards });
+  assert.equal(response.status, 200);
+  const output = await response.text();
+  assert.match(output, /### 头脑组/);
+  assert.match(output, /### 忠告组/);
+  assert.match(output, /### 结果组/);
+  assert.equal((output.match(/核心主题/g) ?? []).length, 3);
+  assert.equal((output.match(/号基础/g) ?? []).length, 3);
+  assert.deepEqual([...output.matchAll(/第(\d+)张/g)].map(m => Number(m[1])), Array.from({ length: 15 }, (_, i) => i + 1));
+  assert.match(output, /第15张 · 5号发展：节制（逆位）/);
+}));
+test('ten fifteen-card cases and cross layout retain source group roles and exceptions', () => {
+  const { FIFTEEN_CARD_CASES, FIFTEEN_POSITIONS, FIFTEEN_LAYOUT } = loadTs('lib/prompts/mass-fifteen-card.ts');
+  assert.equal(FIFTEEN_POSITIONS.length, 15);
+  assert.deepEqual(FIFTEEN_LAYOUT, [{ row: 2, col: 2 }, { row: 2, col: 1 }, { row: 2, col: 3 }, { row: 3, col: 2 }, { row: 1, col: 2 }]);
+  assert.equal(FIFTEEN_CARD_CASES.length, 10);
+  for (const c of FIFTEEN_CARD_CASES) {
+    assert.equal(c.groups.length, 3, c.title);
+    for (const g of c.groups) assert.equal(g.length, 5, c.title);
+  }
+  assert.deepEqual(FIFTEEN_CARD_CASES[0].groups.map(g => g[0]), ['倒吊人', '放纵（圣杯七）', '失望（圣杯五）']);
+  assert.match(FIFTEEN_CARD_CASES[2].clarifiers, /第三组误标为头脑/);
+  assert.match(FIFTEEN_CARD_CASES[5].lesson, /同一人相隔约一个月/);
+  assert.match(FIFTEEN_CARD_CASES[7].clarifiers, /结果组3号.*4号.*5号/);
+});
