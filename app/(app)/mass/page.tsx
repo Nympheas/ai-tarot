@@ -11,7 +11,7 @@ import { PaywallModal } from "@/components/PaywallModal";
 import { RetryCountdown } from "@/components/RetryCountdown";
 
 type Step = "setup" | "reading";
-type InputMode = "auto" | "manual" | "three-card";
+type InputMode = "auto" | "manual" | "three-card" | "four-card";
 type CardInput = { name: string; isReversed: boolean };
 type GroupCards = { verification: CardInput[]; reading: CardInput[] };
 
@@ -83,7 +83,10 @@ export default function MassPage() {
     let verificationCards: { nameZh: string; name: string; isReversed: boolean }[];
     let readingCards: { nameZh: string; name: string; isReversed: boolean }[];
 
-    if (inputMode === "three-card") {
+    if (inputMode === "four-card") {
+      verificationCards = [];
+      readingCards = drawCards(4).map((c) => ({ ...c, isReversed: Math.random() > 0.5 }));
+    } else if (inputMode === "three-card") {
       verificationCards = [];
       readingCards = drawCards(3).map((c) => ({ ...c, isReversed: Math.random() > 0.5 }));
     } else if (inputMode === "manual") {
@@ -100,7 +103,7 @@ export default function MassPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "mass",
-        ...(inputMode === "three-card" ? { spread: "three-card" } : {}),
+        ...(inputMode === "three-card" || inputMode === "four-card" ? { spread: inputMode } : {}),
         theme,
         question,
         groupNumber: group.number,
@@ -141,7 +144,7 @@ export default function MassPage() {
       type: "tarot",
       question: `大众占卜 · ${THEME_LABELS[theme]} · 第${group.number}组 · ${question}`,
       result: full,
-      metadata: { ...(inputMode === "three-card" ? { spread: "three-card" } : {}), massTheme: theme, group: group.number, question, verificationCards, readingCards },
+      metadata: { ...(inputMode === "three-card" || inputMode === "four-card" ? { spread: inputMode } : {}), massTheme: theme, group: group.number, question, verificationCards, readingCards },
     });
   }
 
@@ -254,9 +257,21 @@ export default function MassPage() {
                 >
                   🃏 三张牌解读法
                 </button>
+                <button
+                  onClick={() => setInputMode("four-card")}
+                  aria-pressed={inputMode === "four-card"}
+                  className={`flex-1 py-2.5 text-sm font-medium transition-all cursor-pointer border-l border-slate-800 ${
+                    inputMode === "four-card" ? "bg-pink-900/30 text-pink-200" : "text-slate-500 hover:text-slate-400"
+                  }`}
+                >
+                  🤝 四张牌关系解读法
+                </button>
               </div>
               {inputMode === "three-card" && (
                 <p className="text-slate-600 text-xs">每组随机抽 3 张牌，依次解读头脑、忠告、结果，使用下方选定的人格。</p>
+              )}
+              {inputMode === "four-card" && (
+                <p className="text-slate-600 text-xs">每组随机抽 4 张牌：头脑、忠告、结果、关系人。适合关系问题，使用下方选定的人格。</p>
               )}
               {inputMode === "manual" && (
                 <p className="text-slate-600 text-xs">每组需输入 3 张验证牌 + 5 张解读牌，共 8 张</p>
@@ -323,6 +338,9 @@ export default function MassPage() {
                 {inputMode === "three-card" && (
                   <span className="text-slate-600 text-xs">· 三张牌解读法</span>
                 )}
+                {inputMode === "four-card" && (
+                  <span className="text-slate-600 text-xs">· 四张牌关系解读法</span>
+                )}
                 {personality === "intp" && (
                   <span className="text-slate-500 text-xs px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">INTP</span>
                 )}
@@ -339,7 +357,7 @@ export default function MassPage() {
               const gc  = manualCards[i];
               const verifyDone = gc.verification.every((c) => c.name.trim() !== "");
               const readDone   = gc.reading.every((c) => c.name.trim() !== "");
-              const canGenerate = inputMode === "three-card" || inputMode === "auto" || (verifyDone && readDone);
+              const canGenerate = inputMode === "four-card" || inputMode === "three-card" || inputMode === "auto" || (verifyDone && readDone);
 
               return (
                 <motion.div

@@ -1,3 +1,4 @@
+import { withFourCardSpread, buildFourCardUserPrompt, isFourCardReading, getFourCardMock } from "@/lib/prompts/mass-four-card";
 import { withThreeCardSpread, buildThreeCardUserPrompt, isThreeCardReading, getThreeCardMock } from "@/lib/prompts/mass-three-card";
 import { GoogleGenerativeAI, Content, GenerationConfig } from "@google/generative-ai";
 import { auth } from "@clerk/nextjs/server";
@@ -16,6 +17,7 @@ function getSystemPrompt(type: DivinationType, body: Record<string, unknown>): s
   if (type === "mass") {
     const personality = (body.personality as MassPersonality) ?? "default";
     const prompt = personality === "intp" ? getMassINTPSystemPrompt() : getMassSystemPrompt();
+    if (body.spread === "four-card") return withFourCardSpread(prompt, personality);
     return body.spread === "three-card" ? withThreeCardSpread(prompt, personality) : prompt;
   }
   if (type === "ziwei")  return getZiweiSystemPrompt();
@@ -38,6 +40,12 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
     );
   }
   if (type === "mass") {
+    if (body.spread === "four-card" && isFourCardReading(body.readingCards)) {
+      return buildFourCardUserPrompt(
+        body.theme as MassTheme, body.groupNumber as number, body.groupSymbol as string,
+        body.question as string, body.readingCards
+      );
+    }
     if (body.spread === "three-card" && isThreeCardReading(body.readingCards)) {
       return buildThreeCardUserPrompt(
         body.theme as MassTheme, body.groupNumber as number, body.groupSymbol as string,
@@ -94,6 +102,11 @@ export async function POST(req: Request) {
     return Response.json({ error: "三张牌解读需要一个问题和三张牌" }, { status: 400 });
   }
 
+  if (type === "mass" && body.spread === "four-card" &&
+      (!isFourCardReading(body.readingCards) || typeof body.question !== "string" || !body.question.trim())) {
+    return Response.json({ error: "四张牌关系解读需要一个问题和四张牌" }, { status: 400 });
+  }
+
   // Auth + credit check (only for new readings, not follow-up messages)
   if (messages.length === 0) {
     const { userId } = await auth();
@@ -119,7 +132,9 @@ export async function POST(req: Request) {
     !process.env.GEMINI_API_KEY ||
     process.env.GEMINI_API_KEY === "your_gemini_api_key_here"
   ) {
-    const mockText = type === "mass" && body.spread === "three-card"
+    const mockText = type === "mass" && body.spread === "four-card"
+      ? getFourCardMock(body.readingCards)
+      : type === "mass" && body.spread === "three-card"
       ? getThreeCardMock(body.readingCards)
       : getMockResponse(type);
     const encoder = new TextEncoder();
