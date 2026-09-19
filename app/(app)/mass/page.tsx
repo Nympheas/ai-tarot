@@ -1,5 +1,7 @@
 "use client";
 
+import { THIRTEEN_POSITIONS } from "@/lib/prompts/mass-thirteen-card";
+import { drawAddedCards } from "@/lib/divination/added-cards";
 import { MassAddedReading } from "@/components/MassAddedReading";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,7 +14,7 @@ import { PaywallModal } from "@/components/PaywallModal";
 import { RetryCountdown } from "@/components/RetryCountdown";
 
 type Step = "setup" | "reading";
-type InputMode = "auto" | "manual" | "three-card" | "four-card" | "added-card";
+type InputMode = "auto" | "manual" | "three-card" | "four-card" | "added-card" | "thirteen-card";
 type CardInput = { name: string; isReversed: boolean };
 type GroupCards = { verification: CardInput[]; reading: CardInput[] };
 
@@ -29,7 +31,7 @@ const GROUPS = [
   { number: 3, symbol: "✨", name: "黄水晶", accent: "amber" },
 ] as const;
 
-type GroupState = { status: "idle" | "loading" | "done" | "error"; content: string; retryAfter?: number };
+type GroupState = { status: "idle" | "loading" | "done" | "error"; content: string; retryAfter?: number; thirteenCards?: { nameZh: string; isReversed: boolean }[] };
 
 const ACCENT = {
   purple: { border: "border-purple-500/30", bg: "bg-purple-900/10", btn: "from-purple-600 to-indigo-600", badge: "bg-purple-500/10 text-purple-300 border-purple-500/20", sub: "text-purple-400/70" },
@@ -84,7 +86,11 @@ export default function MassPage() {
     let verificationCards: { nameZh: string; name: string; isReversed: boolean }[];
     let readingCards: { nameZh: string; name: string; isReversed: boolean }[];
 
-    if (inputMode === "four-card") {
+    if (inputMode === "thirteen-card") {
+      verificationCards = [];
+      readingCards = drawAddedCards(13);
+      updateGroup(index, { thirteenCards: readingCards });
+    } else if (inputMode === "four-card") {
       verificationCards = [];
       readingCards = drawCards(4).map((c) => ({ ...c, isReversed: Math.random() > 0.5 }));
     } else if (inputMode === "three-card") {
@@ -104,7 +110,7 @@ export default function MassPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "mass",
-        ...(inputMode === "three-card" || inputMode === "four-card" ? { spread: inputMode } : {}),
+        ...(inputMode === "three-card" || inputMode === "four-card" || inputMode === "thirteen-card" ? { spread: inputMode } : {}),
         theme,
         question,
         groupNumber: group.number,
@@ -145,7 +151,7 @@ export default function MassPage() {
       type: "tarot",
       question: `大众占卜 · ${THEME_LABELS[theme]} · 第${group.number}组 · ${question}`,
       result: full,
-      metadata: { ...(inputMode === "three-card" || inputMode === "four-card" ? { spread: inputMode } : {}), massTheme: theme, group: group.number, question, verificationCards, readingCards },
+      metadata: { ...(inputMode === "three-card" || inputMode === "four-card" || inputMode === "thirteen-card" ? { spread: inputMode } : {}), massTheme: theme, group: group.number, question, verificationCards, readingCards },
     });
   }
 
@@ -232,7 +238,7 @@ export default function MassPage() {
             {/* Input Mode */}
             <div className="flex flex-col gap-3">
               <p className="text-slate-400 text-sm">抽牌方式</p>
-              <div className="flex rounded-xl border border-slate-800 overflow-hidden">
+              <div className="grid grid-cols-2 sm:grid-cols-3 rounded-xl border border-slate-800 overflow-hidden">
                 <button
                   onClick={() => setInputMode("auto")}
                   className={`flex-1 py-2.5 text-sm font-medium transition-all cursor-pointer border-r border-slate-800 ${
@@ -274,7 +280,17 @@ export default function MassPage() {
                 >
                   ➕ 加牌解读法
                 </button>
+                <button
+                  onClick={() => setInputMode("thirteen-card")}
+                  aria-pressed={inputMode === "thirteen-card"}
+                  className={`py-2.5 px-2 text-sm font-medium transition-all cursor-pointer border-l border-slate-800 ${inputMode === "thirteen-card" ? "bg-pink-900/30 text-pink-200" : "text-slate-500 hover:text-slate-400"}`}
+                >
+                  🌿 十三张牌目前生活解读法
+                </button>
               </div>
+              {inputMode === "thirteen-card" && (
+                <p className="text-slate-500 text-xs">每组从完整牌库抽取 13 张不重复的牌，分整体想法、生活面向、行动与成长三个层面解读，使用下方选定的人格。</p>
+              )}
               {inputMode === "added-card" && (
                 <p className="text-slate-500 text-xs">先抽三张或四张基础牌，再带着明确目的补充已有牌。保留原牌、加牌记录和所选人格。</p>
               )}
@@ -353,6 +369,7 @@ export default function MassPage() {
                   <span className="text-slate-600 text-xs">· 四张牌关系解读法</span>
                 )}
                 {inputMode === "added-card" && <span className="text-purple-300 text-xs">加牌解读法</span>}
+                {inputMode === "thirteen-card" && <span className="text-slate-500 text-xs">· 十三张牌目前生活解读法</span>}
                 {personality === "intp" && (
                   <span className="text-slate-500 text-xs px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">INTP</span>
                 )}
@@ -370,7 +387,7 @@ export default function MassPage() {
               const gc  = manualCards[i];
               const verifyDone = gc.verification.every((c) => c.name.trim() !== "");
               const readDone   = gc.reading.every((c) => c.name.trim() !== "");
-              const canGenerate = inputMode === "four-card" || inputMode === "three-card" || inputMode === "auto" || (verifyDone && readDone);
+              const canGenerate = inputMode === "thirteen-card" || inputMode === "four-card" || inputMode === "three-card" || inputMode === "auto" || (verifyDone && readDone);
 
               return (
                 <motion.div
@@ -417,6 +434,15 @@ export default function MassPage() {
                       <span className="text-amber-500/70 text-xs">生成失败</span>
                     )}
                   </div>
+
+                  {inputMode === "thirteen-card" && g.thirteenCards && g.status !== "idle" && (
+                    <details className="mx-5 mb-4 text-xs text-slate-400" open>
+                      <summary className="cursor-pointer text-pink-200">本组 13 张牌与牌位</summary>
+                      <ol className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                        {g.thirteenCards.map((card, ci) => <li key={ci}>{ci + 1}. {THIRTEEN_POSITIONS[ci]}：{card.nameZh}（{card.isReversed ? "逆位" : "正位"}）</li>)}
+                      </ol>
+                    </details>
+                  )}
 
                   {/* Manual card inputs */}
                   {inputMode === "manual" && g.status === "idle" && (

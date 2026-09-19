@@ -203,3 +203,55 @@ test('addition draws preserve the old deck and never reuse a base or supplementa
   assert.equal(remainder.length, ALL_CARDS.length - 5);
   assert.ok(remainder.every(c => !drawn.slice(0, 5).some(old => old.name === c.name)));
 });
+
+const thirteenCards = loadTs('lib/divination/tarot-cards.ts').ALL_CARDS.slice(0, 13).map((c, i) => ({ name: c.name, nameZh: c.nameZh, isReversed: i === 12 }));
+for (const personality of ['default', 'intp']) {
+  test(`thirteen-card ${personality}: preserves personality and uses all positions and fifteen examples`, async () => inMode(false, async () => {
+    const { post, seen } = harness();
+    const prompts = loadTs('lib/prompts/mass.ts');
+    const spread = loadTs('lib/prompts/mass-thirteen-card.ts');
+    const response = await post({ ...payload, personality, spread: 'thirteen-card', readingCards: thirteenCards });
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), 'test reading');
+    assert.equal(seen.credits, 1);
+    const base = personality === 'intp' ? prompts.getMassINTPSystemPrompt() : prompts.getMassSystemPrompt();
+    assert.ok(seen.system.startsWith(base + '\n'));
+    assert.match(seen.system, /案例15：近期烦乱与动荡不安/);
+    assert.match(seen.system, /13→1→9→8/);
+    assert.match(seen.system, /11号如何支持10号/);
+    assert.match(seen.system, /不将教材加牌塞入实际13张/);
+    for (let i = 0; i < 13; i++) assert.ok(seen.user.includes(`第${i + 1}张 · ${spread.THIRTEEN_POSITIONS[i]}：${thirteenCards[i].nameZh}`));
+    assert.match(seen.user, /第13张 · 综观：.*逆位/);
+    assert.doesNotMatch(seen.user, /验证牌/);
+  }));
+}
+test('thirteen-card malformed counts, duplicate cards and missing questions reject before billing', async () => {
+  const { post, seen } = harness();
+  for (const readingCards of [null, [], thirteenCards.slice(0, 12), [...thirteenCards, cards[0]], [null, ...thirteenCards.slice(1)], [thirteenCards[1], ...thirteenCards.slice(1)], [{ ...thirteenCards[0], nameZh: ' ' }, ...thirteenCards.slice(1)], [{ ...thirteenCards[0], isReversed: 'false' }, ...thirteenCards.slice(1)]]) {
+    assert.equal((await post({ ...payload, spread: 'thirteen-card', readingCards })).status, 400);
+  }
+  assert.equal((await post({ ...payload, spread: 'thirteen-card', readingCards: thirteenCards, question: ' ' })).status, 400);
+  assert.equal(seen.credits, 0);
+});
+test('thirteen-card mock uses actual cards in the book reading order without dropping positions', async () => inMode(true, async () => {
+  const { post } = harness();
+  const response = await post({ ...payload, spread: 'thirteen-card', readingCards: thirteenCards });
+  assert.equal(response.status, 200);
+  const output = await response.text();
+  const order = [...output.matchAll(/(?:^|\n)(\d+)\. /g)].map(m => Number(m[1]));
+  assert.deepEqual(order, [13, 1, 9, 8, 5, 7, 4, 6, 2, 3, 10, 11, 12]);
+  assert.match(output, /13\. 综观：倒吊人（逆位）/);
+}));
+test('fifteen thirteen-card book cases retain numbered positions and supplemental exceptions', () => {
+  const { THIRTEEN_CARD_CASES, THIRTEEN_POSITIONS, THIRTEEN_LAYERS } = loadTs('lib/prompts/mass-thirteen-card.ts');
+  assert.equal(THIRTEEN_POSITIONS.length, 13);
+  assert.equal(new Set(THIRTEEN_LAYERS.flat()).size, 13);
+  assert.equal(THIRTEEN_CARD_CASES.length, 15);
+  for (const c of THIRTEEN_CARD_CASES) assert.equal(c.cards.length, 13, c.title);
+  assert.equal(THIRTEEN_CARD_CASES[2].cards[12], '艺术');
+  assert.match(THIRTEEN_CARD_CASES[2].lesson, /主要关系是同事/);
+  assert.match(THIRTEEN_CARD_CASES[3].clarifiers, /8号宝剑一.*茅塞顿开.*失败/);
+  assert.match(THIRTEEN_CARD_CASES[11].clarifiers, /13号.*12号/);
+  assert.match(THIRTEEN_CARD_CASES[14].cards[5], /宝剑公主／科学/);
+  assert.match(THIRTEEN_CARD_CASES[14].clarifiers, /不新增第14个位置/);
+});
