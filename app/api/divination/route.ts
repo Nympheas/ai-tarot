@@ -1,3 +1,4 @@
+import { withThreeCardSpread, buildThreeCardUserPrompt, isThreeCardReading, getThreeCardMock } from "@/lib/prompts/mass-three-card";
 import { GoogleGenerativeAI, Content, GenerationConfig } from "@google/generative-ai";
 import { auth } from "@clerk/nextjs/server";
 import { getUserCreditStatus, consumeCredit } from "@/lib/credits";
@@ -14,7 +15,8 @@ function getSystemPrompt(type: DivinationType, body: Record<string, unknown>): s
   if (type === "iching") return getIChingSystemPrompt();
   if (type === "mass") {
     const personality = (body.personality as MassPersonality) ?? "default";
-    return personality === "intp" ? getMassINTPSystemPrompt() : getMassSystemPrompt();
+    const prompt = personality === "intp" ? getMassINTPSystemPrompt() : getMassSystemPrompt();
+    return body.spread === "three-card" ? withThreeCardSpread(prompt, personality) : prompt;
   }
   if (type === "ziwei")  return getZiweiSystemPrompt();
   if (type === "astro")  return getAstroSystemPrompt();
@@ -36,6 +38,12 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
     );
   }
   if (type === "mass") {
+    if (body.spread === "three-card" && isThreeCardReading(body.readingCards)) {
+      return buildThreeCardUserPrompt(
+        body.theme as MassTheme, body.groupNumber as number, body.groupSymbol as string,
+        body.question as string, body.readingCards
+      );
+    }
     return buildMassUserPrompt(
       body.theme as MassTheme,
       body.groupNumber as number,
@@ -81,6 +89,11 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { type, messages = [] }: { type: DivinationType; messages: Message[] } = body;
 
+  if (type === "mass" && body.spread === "three-card" &&
+      (!isThreeCardReading(body.readingCards) || typeof body.question !== "string" || !body.question.trim())) {
+    return Response.json({ error: "三张牌解读需要一个问题和三张牌" }, { status: 400 });
+  }
+
   // Auth + credit check (only for new readings, not follow-up messages)
   if (messages.length === 0) {
     const { userId } = await auth();
@@ -106,7 +119,9 @@ export async function POST(req: Request) {
     !process.env.GEMINI_API_KEY ||
     process.env.GEMINI_API_KEY === "your_gemini_api_key_here"
   ) {
-    const mockText = getMockResponse(type);
+    const mockText = type === "mass" && body.spread === "three-card"
+      ? getThreeCardMock(body.readingCards)
+      : getMockResponse(type);
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
