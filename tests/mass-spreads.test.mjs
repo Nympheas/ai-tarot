@@ -118,3 +118,88 @@ test('ten book cases retain four positions and separate exceptional clarifiers',
   assert.match(FOUR_CARD_CASES[6].clarifiers, /同位两牌/);
   assert.match(FOUR_CARD_CASES[7].clarifiers, /关系人位英勇补休战/);
 });
+
+const extraCards = ['太阳', '月亮', '世界', '女皇'].map(name => ({ name, nameZh: name, isReversed: false }));
+const addedReading = {
+  readingCards: cards.slice(0, 3),
+  additions: [
+    { target: 2, purpose: '结果需要落实什么？', cards: extraCards.slice(0, 1) },
+    { target: 3, purpose: '这一步的具体方向是什么？', cards: extraCards.slice(1, 3) },
+    { target: 0, purpose: '头脑的顾虑是什么？', cards: extraCards.slice(3) },
+  ],
+};
+for (const personality of ['default', 'intp']) {
+  test(`added-card ${personality}: base, chained and branched additions keep original personality`, async () => inMode(false, async () => {
+    const { post, seen } = harness();
+    const prompts = loadTs('lib/prompts/mass.ts');
+    const base = personality === 'intp' ? prompts.getMassINTPSystemPrompt() : prompts.getMassSystemPrompt();
+    for (const reading of [{ readingCards: cards, additions: [] }, addedReading]) {
+      const response = await post({ ...payload, personality, spread: 'added-card', ...reading });
+      assert.equal(response.status, 200);
+      assert.equal(await response.text(), 'test reading');
+      assert.ok(seen.system.startsWith(base + '\n'));
+      assert.match(seen.system, /案例10：论文研究访谈/);
+      assert.match(seen.system, /不能覆盖、替换/);
+      if (reading.additions.length) {
+        assert.match(seen.user, /第2次加牌，补充第4张 太阳/);
+        assert.match(seen.user, /第3次加牌，补充第1张 圣杯四/);
+        assert.match(seen.user, /第6张 · 补充牌：世界/);
+        assert.match(seen.user, /结果需要落实什么/);
+      } else {
+        assert.match(seen.user, /第4张 · 关系人：圣杯五.*逆位/);
+        assert.doesNotMatch(seen.user, /次加牌/);
+      }
+    }
+    assert.equal(seen.credits, 2);
+  }));
+}
+test('added-card invalid targets, duplicate cards, empty purposes and malformed batches reject before billing', async () => {
+  const { post, seen } = harness();
+  const first = addedReading.additions[0];
+  const invalid = [
+    { readingCards: cards.slice(0, 2), additions: [] },
+    { readingCards: [cards[0], cards[0], cards[1]], additions: [] },
+    { readingCards: cards, additions: null },
+    ...[
+      { ...first, target: -1 }, { ...first, target: 3 }, { ...first, target: 0.5 },
+      { ...first, purpose: ' ' }, { ...first, cards: [] },
+      { ...first, cards: extraCards.slice(0, 3) }, { ...first, cards: [cards[0]] },
+      { ...first, cards: [{ ...extraCards[0], isReversed: 'false' }] },
+    ].map(addition => ({ readingCards: cards.slice(0, 3), additions: [addition] })),
+    { ...addedReading, additions: [first, { ...first, cards: first.cards }] },
+  ];
+  for (const reading of invalid) assert.equal((await post({ ...payload, spread: 'added-card', ...reading })).status, 400);
+  assert.equal(seen.credits, 0);
+});
+test('added-card mock keeps actual additions, purpose and source card', async () => inMode(true, async () => {
+  const { post, seen } = harness();
+  const response = await post({ ...payload, spread: 'added-card', ...addedReading, messages: [{ role: 'user', content: 'continue' }] });
+  assert.equal(response.status, 200);
+  const output = await response.text();
+  assert.match(output, /演示模式/);
+  assert.match(output, /第2次加牌，补充第4张 太阳/);
+  assert.match(output, /第7张 · 补充牌：女皇/);
+  assert.equal(seen.credits, 1, 'additions cannot bypass billing by sending messages');
+}));
+test('ten addition cases retain sequential, simultaneous and independent branches', () => {
+  const { ADDED_CARD_CASES } = loadTs('lib/prompts/mass-added-card.ts');
+  assert.equal(ADDED_CARD_CASES.length, 10);
+  assert.match(ADDED_CARD_CASES[1].chain, /同时加出残酷.*挫败/);
+  assert.match(ADDED_CARD_CASES[2].chain, /教皇 → 宝剑一 → 改变.*→ 奢华/);
+  assert.match(ADDED_CARD_CASES[7].chain, /头脑.*和平.*；忠告.*女皇/);
+  assert.match(ADDED_CARD_CASES[8].base, /同属头脑位/);
+});
+
+test('addition draws preserve the old deck and never reuse a base or supplementary card', () => {
+  const { drawAddedCards } = loadTs('lib/divination/added-cards.ts');
+  const { ALL_CARDS, drawCards } = loadTs('lib/divination/tarot-cards.ts');
+  assert.equal(drawCards(78).length, 22, 'original draw behavior remains unchanged');
+  const drawn = drawAddedCards(78);
+  assert.equal(drawn.length, 78);
+  assert.equal(new Set(drawn.map(c => c.name)).size, 78);
+  assert.ok(drawn.every(c => typeof c.isReversed === 'boolean'));
+  const used = { readingCards: drawn.slice(0, 3), additions: [{ target: 2, purpose: 'clarify', cards: drawn.slice(3, 5) }] };
+  const remainder = drawAddedCards(78, used);
+  assert.equal(remainder.length, ALL_CARDS.length - 5);
+  assert.ok(remainder.every(c => !drawn.slice(0, 5).some(old => old.name === c.name)));
+});

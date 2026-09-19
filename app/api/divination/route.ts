@@ -1,3 +1,4 @@
+import { withAddedCardSpread, buildAddedCardUserPrompt, isAddedReading, getAddedCardMock } from "@/lib/prompts/mass-added-card";
 import { withFourCardSpread, buildFourCardUserPrompt, isFourCardReading, getFourCardMock } from "@/lib/prompts/mass-four-card";
 import { withThreeCardSpread, buildThreeCardUserPrompt, isThreeCardReading, getThreeCardMock } from "@/lib/prompts/mass-three-card";
 import { GoogleGenerativeAI, Content, GenerationConfig } from "@google/generative-ai";
@@ -17,6 +18,7 @@ function getSystemPrompt(type: DivinationType, body: Record<string, unknown>): s
   if (type === "mass") {
     const personality = (body.personality as MassPersonality) ?? "default";
     const prompt = personality === "intp" ? getMassINTPSystemPrompt() : getMassSystemPrompt();
+    if (body.spread === "added-card") return withAddedCardSpread(prompt, personality);
     if (body.spread === "four-card") return withFourCardSpread(prompt, personality);
     return body.spread === "three-card" ? withThreeCardSpread(prompt, personality) : prompt;
   }
@@ -40,6 +42,9 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
     );
   }
   if (type === "mass") {
+    if (body.spread === "added-card" && isAddedReading(body)) {
+      return buildAddedCardUserPrompt(body.theme as MassTheme, body.groupNumber as number, body.groupSymbol as string, body.question as string, body);
+    }
     if (body.spread === "four-card" && isFourCardReading(body.readingCards)) {
       return buildFourCardUserPrompt(
         body.theme as MassTheme, body.groupNumber as number, body.groupSymbol as string,
@@ -107,8 +112,13 @@ export async function POST(req: Request) {
     return Response.json({ error: "四张牌关系解读需要一个问题和四张牌" }, { status: 400 });
   }
 
+  if (type === "mass" && body.spread === "added-card" &&
+      (!isAddedReading(body) || typeof body.question !== "string" || !body.question.trim())) {
+    return Response.json({ error: "加牌解读需要三张或四张基础牌；每次加牌须指定已有牌、明确目的及一至两张不重复的补充牌" }, { status: 400 });
+  }
+
   // Auth + credit check (only for new readings, not follow-up messages)
-  if (messages.length === 0) {
+  if (messages.length === 0 || (type === "mass" && body.spread === "added-card")) {
     const { userId } = await auth();
     if (!userId) {
       return new Response(JSON.stringify({ error: "unauthenticated" }), {
@@ -132,7 +142,9 @@ export async function POST(req: Request) {
     !process.env.GEMINI_API_KEY ||
     process.env.GEMINI_API_KEY === "your_gemini_api_key_here"
   ) {
-    const mockText = type === "mass" && body.spread === "four-card"
+    const mockText = type === "mass" && body.spread === "added-card"
+      ? getAddedCardMock(body)
+      : type === "mass" && body.spread === "four-card"
       ? getFourCardMock(body.readingCards)
       : type === "mass" && body.spread === "three-card"
       ? getThreeCardMock(body.readingCards)

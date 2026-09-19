@@ -1,5 +1,6 @@
 "use client";
 
+import { MassAddedReading } from "@/components/MassAddedReading";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
@@ -11,7 +12,7 @@ import { PaywallModal } from "@/components/PaywallModal";
 import { RetryCountdown } from "@/components/RetryCountdown";
 
 type Step = "setup" | "reading";
-type InputMode = "auto" | "manual" | "three-card" | "four-card";
+type InputMode = "auto" | "manual" | "three-card" | "four-card" | "added-card";
 type CardInput = { name: string; isReversed: boolean };
 type GroupCards = { verification: CardInput[]; reading: CardInput[] };
 
@@ -266,7 +267,17 @@ export default function MassPage() {
                 >
                   🤝 四张牌关系解读法
                 </button>
+                <button
+                  onClick={() => setInputMode("added-card")}
+                  aria-pressed={inputMode === "added-card"}
+                  className={`flex-1 py-2.5 text-sm font-medium transition-all cursor-pointer border-l border-slate-800 ${inputMode === "added-card" ? "bg-pink-900/30 text-pink-200" : "text-slate-500 hover:text-slate-400"}`}
+                >
+                  ➕ 加牌解读法
+                </button>
               </div>
+              {inputMode === "added-card" && (
+                <p className="text-slate-500 text-xs">先抽三张或四张基础牌，再带着明确目的补充已有牌。保留原牌、加牌记录和所选人格。</p>
+              )}
               {inputMode === "three-card" && (
                 <p className="text-slate-600 text-xs">每组随机抽 3 张牌，依次解读头脑、忠告、结果，使用下方选定的人格。</p>
               )}
@@ -341,6 +352,7 @@ export default function MassPage() {
                 {inputMode === "four-card" && (
                   <span className="text-slate-600 text-xs">· 四张牌关系解读法</span>
                 )}
+                {inputMode === "added-card" && <span className="text-purple-300 text-xs">加牌解读法</span>}
                 {personality === "intp" && (
                   <span className="text-slate-500 text-xs px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">INTP</span>
                 )}
@@ -351,7 +363,8 @@ export default function MassPage() {
             </div>
 
             {/* Group panels */}
-            {GROUPS.map((group, i) => {
+            {inputMode === "added-card" && <MassAddedReading theme={theme} question={question} personality={personality} />}
+            {inputMode !== "added-card" && GROUPS.map((group, i) => {
               const g   = groups[i];
               const ac  = ACCENT[group.accent];
               const gc  = manualCards[i];
