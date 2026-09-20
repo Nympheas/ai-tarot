@@ -1,3 +1,4 @@
+import { getMassBookSystemPrompt, buildMassBookUserPrompt, getMassBookMock } from "@/lib/prompts/mass-book";
 import { withTwentyCardSpread, buildTwentyCardUserPrompt, isTwentyCardReading, getTwentyCardMock } from "@/lib/prompts/mass-twenty-card";
 import { withFifteenCardSpread, buildFifteenCardUserPrompt, isFifteenCardReading, getFifteenCardMock } from "@/lib/prompts/mass-fifteen-card";
 import { withThirteenCardSpread, buildThirteenCardUserPrompt, isThirteenCardReading, getThirteenCardMock } from "@/lib/prompts/mass-thirteen-card";
@@ -20,7 +21,7 @@ function getSystemPrompt(type: DivinationType, body: Record<string, unknown>): s
   if (type === "iching") return getIChingSystemPrompt();
   if (type === "mass") {
     const personality = (body.personality as MassPersonality) ?? "default";
-    const prompt = personality === "intp" ? getMassINTPSystemPrompt() : getMassSystemPrompt();
+    const prompt = personality === "book" ? getMassBookSystemPrompt() : personality === "intp" ? getMassINTPSystemPrompt() : getMassSystemPrompt();
     if (body.spread === "twenty-card") return withTwentyCardSpread(prompt, personality);
     if (body.spread === "fifteen-card") return withFifteenCardSpread(prompt, personality);
     if (body.spread === "thirteen-card") return withThirteenCardSpread(prompt, personality);
@@ -72,6 +73,14 @@ function buildUserPrompt(type: DivinationType, body: Record<string, unknown>): s
         body.question as string, body.readingCards
       );
     }
+    if (body.personality === "book") return buildMassBookUserPrompt(
+      body.theme as MassTheme,
+      body.groupNumber as number,
+      body.groupSymbol as string,
+      (body.question as string) ?? "",
+      body.verificationCards as Array<{ nameZh: string; name: string; isReversed: boolean }>,
+      body.readingCards as Array<{ nameZh: string; name: string; isReversed: boolean }>
+    );
     return buildMassUserPrompt(
       body.theme as MassTheme,
       body.groupNumber as number,
@@ -184,6 +193,8 @@ export async function POST(req: Request) {
       ? getFourCardMock(body.readingCards)
       : type === "mass" && body.spread === "three-card"
       ? getThreeCardMock(body.readingCards)
+      : type === "mass" && body.personality === "book"
+      ? getMassBookMock(body.verificationCards, body.readingCards)
       : getMockResponse(type);
     const encoder = new TextEncoder();
     const stream = new ReadableStream({

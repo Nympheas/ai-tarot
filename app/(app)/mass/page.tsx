@@ -161,7 +161,7 @@ export default function MassPage() {
       type: "tarot",
       question: `大众占卜 · ${THEME_LABELS[theme]} · 第${group.number}组 · ${question}`,
       result: full,
-      metadata: { ...(inputMode === "three-card" || inputMode === "four-card" || inputMode === "thirteen-card" || inputMode === "fifteen-card" || inputMode === "twenty-card" ? { spread: inputMode } : {}), massTheme: theme, group: group.number, question, verificationCards, readingCards },
+      metadata: { ...(inputMode === "three-card" || inputMode === "four-card" || inputMode === "thirteen-card" || inputMode === "fifteen-card" || inputMode === "twenty-card" ? { spread: inputMode } : {}), massTheme: theme, group: group.number, question, personality, verificationCards, readingCards },
     });
   }
 
@@ -338,9 +338,10 @@ export default function MassPage() {
             {/* Personality */}
             <div className="flex flex-col gap-3">
               <p className="text-slate-400 text-sm">解读人格</p>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   onClick={() => setPersonality("default")}
+                  aria-pressed={personality === "default"}
                   className={`flex-1 flex flex-col items-start px-4 py-3 rounded-xl border transition-all cursor-pointer text-left ${
                     personality === "default"
                       ? "border-pink-400/60 bg-pink-900/20"
@@ -352,6 +353,7 @@ export default function MassPage() {
                 </button>
                 <button
                   onClick={() => setPersonality("intp")}
+                  aria-pressed={personality === "intp"}
                   className={`flex-1 flex flex-col items-start px-4 py-3 rounded-xl border transition-all cursor-pointer text-left ${
                     personality === "intp"
                       ? "border-slate-400/60 bg-slate-800/60"
@@ -364,8 +366,18 @@ export default function MassPage() {
                   </span>
                   <span className="text-xs text-slate-500 mt-0.5">疲惫·观察·拆本质</span>
                 </button>
+                <button
+                  onClick={() => setPersonality("book")}
+                  aria-pressed={personality === "book"}
+                  className={`flex-1 flex flex-col items-start px-4 py-3 rounded-xl border transition-all cursor-pointer text-left ${personality === "book" ? "border-amber-400/60 bg-amber-900/20" : "border-slate-800 hover:border-slate-700"}`}
+                >
+                  <span className="text-sm font-medium text-white">案例讲解</span>
+                  <span className="text-xs text-slate-500 mt-0.5">平实引导·牌间联系·觉察行动</span>
+                </button>
               </div>
             </div>
+
+            {personality === "book" && <p className="text-xs text-slate-500">参考《塔罗教室，就在你家》的案例解牌思路，从问题、牌位和牌间联系逐步讲解，归纳认识与行动。</p>}
 
             <motion.button
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
@@ -402,6 +414,7 @@ export default function MassPage() {
                 {inputMode === "thirteen-card" && <span className="text-slate-500 text-xs">· 十三张牌目前生活解读法</span>}
                 {inputMode === "fifteen-card" && <span className="text-slate-500 text-xs">· 十五张牌问题解读法</span>}
                 {inputMode === "twenty-card" && <span className="text-slate-500 text-xs">· 二十张牌关系解读法</span>}
+                {personality === "book" && <span className="text-amber-300 text-xs px-1.5 py-0.5 rounded bg-amber-900/20">案例讲解</span>}
                 {personality === "intp" && (
                   <span className="text-slate-500 text-xs px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">INTP</span>
                 )}

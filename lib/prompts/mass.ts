@@ -1,5 +1,5 @@
 export type MassTheme = "love" | "career" | "wealth" | "energy";
-export type MassPersonality = "default" | "intp";
+export type MassPersonality = "default" | "intp" | "book";
 
 export const THEME_LABELS: Record<MassTheme, string> = {
   love: "感情运势",

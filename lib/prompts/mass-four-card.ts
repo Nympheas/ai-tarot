@@ -1,3 +1,4 @@
+import { BOOK_PERSONALITY_CLOSING } from "./mass-book";
 import type { MassPersonality, MassTheme } from "./mass";
 import { THEME_LABELS } from "./mass";
 
@@ -105,7 +106,7 @@ ${cases}
 ### 💡 忠告
 ### 🌙 结果
 ### 🤝 关系人
-${personality === "intp"
+${personality === "book" ? BOOK_PERSONALITY_CLOSING : personality === "intp"
     ? "保持原有 INTP 的疲惫、观察与拆本质表达。前三张的联系自然融入观察，第四张单独看对方。不要增加报告式总结、祝福、鸡汤或强行圆满，不使用原人格禁止的词。"
     : "保持默认人格的口头禅、称呼、分层解读及生活化举例。前三张自然衔接，第四张从对方在互动中的状态切入，结尾沿用温暖建议和祝福。"}
 保持所选人格原来的字数要求。案例用来学习方法，不要求在结果中逐个复述；只围绕本期问题和实际四张牌解读。`;

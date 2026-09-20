@@ -1,3 +1,4 @@
+import { BOOK_PERSONALITY_CLOSING } from "./mass-book";
 import { THEME_LABELS, type MassPersonality, type MassTheme } from "./mass";
 
 type CardInfo = { name: string; nameZh: string; isReversed: boolean };
@@ -97,7 +98,7 @@ ${THIRTEEN_CARD_CASES.map((c, i) => `案例${i + 1}：${c.title}（书内${c.pag
 ### 第一层：整体主题与想法
 ### 第二层：生活各面向
 ### 第三层：行动与成长
-每张实际牌都写明编号、牌位、牌名及正逆位，完整覆盖13张；说明相关牌的联系。不要把13号读成结果或只读与问题相关的几张。${personality === "intp" ? "保持 INTP 的观察与拆解风格，不增加报告式总结、祝福或鸡汤。" : "保持默认人格的称呼、口头禅、生活化举例和原有温暖收尾。"}在原有字数要求内分配篇幅，案例只用于学习方法，不逐例复述。`;
+每张实际牌都写明编号、牌位、牌名及正逆位，完整覆盖13张；说明相关牌的联系。不要把13号读成结果或只读与问题相关的几张。${personality === "book" ? BOOK_PERSONALITY_CLOSING : personality === "intp" ? "保持 INTP 的观察与拆解风格，不增加报告式总结、祝福或鸡汤。" : "保持默认人格的称呼、口头禅、生活化举例和原有温暖收尾。"}在原有字数要求内分配篇幅，案例只用于学习方法，不逐例复述。`;
 }
 export function buildThirteenCardUserPrompt(theme: MassTheme, group: number, symbol: string, question: string, cards: CardInfo[]): string {
   return `大众占卜，主题「${THEME_LABELS[theme]}」，第${group}组（${symbol}）。\n本期问题：${JSON.stringify(question)}\n【十三张牌目前生活解读法】\n${cards.map((c,i) => `第${i+1}张 · ${THIRTEEN_POSITIONS[i]}：${c.nameZh}（${c.name}）— ${c.isReversed ? "逆位" : "正位"}`).join("\n")}\n保持选定人格，按13→1→9→8、生活面向、10→11→12三个层面串联解读，覆盖全部牌位。`;

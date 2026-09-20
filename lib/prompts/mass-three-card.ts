@@ -1,3 +1,4 @@
+import { BOOK_PERSONALITY_CLOSING } from "./mass-book";
 import type { MassPersonality, MassTheme } from "./mass";
 import { THEME_LABELS } from "./mass";
 
@@ -36,7 +37,7 @@ export function withThreeCardSpread(basePrompt: string, personality: MassPersona
 ### 🧠 头脑
 ### 💡 忠告
 ### 🌙 结果
-${personality === "intp"
+${personality === "book" ? BOOK_PERSONALITY_CLOSING : personality === "intp"
     ? "继续使用 INTP 原有的疲惫、观察、拆本质的表达。牌间联系融入观察中，不增加结构总结，不使用宝宝等禁词，不鸡汤、不祝福、不强行圆满；结果段可停在一个具体观察或留白。"
     : "继续使用默认人格原有的称呼、口头禅、分层解读和生活化举例。牌间自然衔接，结果段保留原有温暖的建议与祝福。"}
 保持所选人格原来的字数要求，围绕本期问题回答。`;

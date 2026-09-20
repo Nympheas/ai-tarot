@@ -378,3 +378,43 @@ test('five twenty-card cases retain four independent groups, clarifiers and book
   assert.match(TWENTY_CARD_CASES[4].clarifiers, /关系人组4号永恒加失败/);
   assert.match(TWENTY_CARD_CASES[4].lesson, /退出可能只是暂时/);
 });
+
+for (const spread of [undefined, 'three-card', 'four-card', 'added-card', 'thirteen-card', 'fifteen-card', 'twenty-card']) {
+  test(`book personality: ${spread ?? 'original auto/manual'} keeps the selected layout and teaching voice`, async () => inMode(false, async () => {
+    const { post, seen } = harness();
+    const book = loadTs('lib/prompts/mass-book.ts');
+    const count = { 'three-card': 3, 'four-card': 4, 'added-card': 3, 'thirteen-card': 13, 'fifteen-card': 15, 'twenty-card': 20 }[spread] ?? 5;
+    const readingCards = loadTs('lib/divination/tarot-cards.ts').ALL_CARDS.slice(0, count).map((c,i) => ({ name: c.name, nameZh: c.nameZh, isReversed: i === count-1 }));
+    const verificationCards = spread ? [] : cards.slice(0, 3);
+    const response = await post({ ...payload, personality: 'book', spread, readingCards, verificationCards, additions: [] });
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), 'test reading');
+    assert.equal(seen.credits, 1);
+    assert.ok(seen.system.startsWith(book.getMassBookSystemPrompt()));
+    assert.match(seen.system, /首次写书/);
+    assert.match(seen.system, /母女关系/);
+    assert.doesNotMatch(seen.system, /保持默认人格的|继续使用默认人格|风格完全模仿/);
+    for (const c of readingCards) assert.ok(seen.user.includes(c.nameZh));
+    assert.match(seen.user, /逆位/);
+    if (spread) {
+      assert.ok(seen.system.includes(book.BOOK_PERSONALITY_CLOSING));
+      assert.doesNotMatch(seen.user, /验证牌/);
+    } else {
+      assert.equal(seen.system, book.getMassBookSystemPrompt());
+      assert.equal(seen.user, book.buildMassBookUserPrompt(payload.theme, payload.groupNumber, payload.groupSymbol, payload.question, verificationCards, readingCards));
+      assert.doesNotMatch(seen.user, /宝宝/);
+      assert.match(seen.user, /验证牌 · 3张/);
+      assert.match(seen.user, /解读牌 · 5张/);
+    }
+  }));
+}
+test('book personality original mock shows supplied cards rather than canned persona reading', async () => inMode(true, async () => {
+  const { post } = harness();
+  const response = await post({ ...payload, personality: 'book', verificationCards: cards.slice(0,3), readingCards: [...cards, extraCards[0]] });
+  assert.equal(response.status, 200);
+  const text = await response.text();
+  assert.match(text, /演示模式/);
+  assert.match(text, /案例讲解人格/);
+  assert.match(text, /圣杯五（逆位）/);
+  assert.match(text, /太阳（正位）/);
+}));

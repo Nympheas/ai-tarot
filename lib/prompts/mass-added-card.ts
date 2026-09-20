@@ -1,3 +1,4 @@
+import { BOOK_PERSONALITY_CLOSING } from "./mass-book";
 import { THEME_LABELS, type MassPersonality, type MassTheme } from "./mass";
 
 export type AddedCard = { name: string; nameZh: string; isReversed: boolean };
@@ -64,7 +65,7 @@ export function withAddedCardSpread(base: string, personality: MassPersonality):
 没有加牌时仅解读输入的基础牌，不预先编造补充牌或强行要求加牌。有加牌时结合完整链条，重点回答最后一次明确目的，保留原牌的意义。信息完整就停止；仍困惑时坦诚保留不确定，回到已理解部分，不劝用户不断加抽。
 以下10例为方法参考，绝非当前用户的经历或本次牌。不要把书中的补充牌、心理背景、结论自动套用到用户。保留透特牌名及王子、公主、骑士区别；金币对应星币，贤者对应魔术师主题（并非教皇），宇宙对应世界、艺术对应节制。教材无正逆位标记，本次按实际输入正逆位解读。
 ${ADDED_CARD_CASES.map((c,i) => `案例${i+1}：${c.title}（书内${c.pages}页）\n原牌：${c.base}\n加牌归属与顺序：${c.chain}\n明确目的：${c.purpose}\n方法要点：${c.lesson}`).join("\n\n")}
-输出：先按基础牌位解读，再在有加牌时输出「加牌解读」，明确原牌→补充牌及其目的，最后自然串联已知信息。不要输出验证牌、星座或信息对应。${personality === "intp" ? "保持 INTP 原人格的表达方式，不增加报告式总结、祝福或鸡汤。" : "保持默认人格的生活化表达和原有收尾风格。"}`;
+输出：先按基础牌位解读，再在有加牌时输出「加牌解读」，明确原牌→补充牌及其目的，最后自然串联已知信息。不要输出验证牌、星座或信息对应。${personality === "book" ? BOOK_PERSONALITY_CLOSING : personality === "intp" ? "保持 INTP 原人格的表达方式，不增加报告式总结、祝福或鸡汤。" : "保持默认人格的生活化表达和原有收尾风格。"}`;
 }
 export function buildAddedCardUserPrompt(theme: MassTheme, group: number, symbol: string, question: string, reading: AddedReading): string {
   return `大众占卜，主题「${THEME_LABELS[theme]}」，第${group}组（${symbol}）。\n本期问题：${JSON.stringify(question)}\n【加牌解读法】\n${describeAddedReading(reading)}\n只依据上述实际牌、归属和目的，使用所选人格解读。`;

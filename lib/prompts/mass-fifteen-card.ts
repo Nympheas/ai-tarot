@@ -1,3 +1,4 @@
+import { BOOK_PERSONALITY_CLOSING } from "./mass-book";
 import { THEME_LABELS, type MassPersonality, type MassTheme } from "./mass";
 
 type CardInfo = { name: string; nameZh: string; isReversed: boolean };
@@ -72,7 +73,7 @@ ${FIFTEEN_CARD_CASES.map((c,i) => `案例${i+1}：${c.title}（书内${c.pages}�
 ### 🧠 头脑组
 ### 💡 忠告组
 ### 🌙 结果组
-各节写明本组五张实际牌及正逆位、局部编号与角色，覆盖全部15张；把组内联系及跨组同位呼应融入解读。${personality === "intp" ? "保持 INTP 原人格的观察与拆解表达，不增加报告式总结、祝福或鸡汤。" : "保持默认人格的口头禅、称呼、生活化举例及温暖收尾。"}在原字数要求内安排篇幅，不逐例复述教材。`;
+各节写明本组五张实际牌及正逆位、局部编号与角色，覆盖全部15张；把组内联系及跨组同位呼应融入解读。${personality === "book" ? BOOK_PERSONALITY_CLOSING : personality === "intp" ? "保持 INTP 原人格的观察与拆解表达，不增加报告式总结、祝福或鸡汤。" : "保持默认人格的口头禅、称呼、生活化举例及温暖收尾。"}在原字数要求内安排篇幅，不逐例复述教材。`;
 }
 export function buildFifteenCardUserPrompt(theme: MassTheme, group: number, symbol: string, question: string, cards: CardInfo[]): string {
   return `大众占卜，主题「${THEME_LABELS[theme]}」，观众第${group}组（${symbol}）。\n本期问题：${JSON.stringify(question)}\n【十五张牌问题解读法】\n${cards.map((c,i) => `第${i+1}张 · ${FIFTEEN_POSITIONS[i]}：${c.nameZh}（${c.name}）— ${c.isReversed ? "逆位" : "正位"}`).join("\n")}\n先串联全局第1、6、11张核心牌，再展开三组各五张并联系同号位置，保持选定人格。`;
